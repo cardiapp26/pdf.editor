@@ -848,22 +848,26 @@ async function renderPage(num) {
 
   let bgUrl, canvasW, canvasH;
 
+  const dpr = window.devicePixelRatio || 1;
+
   if (pd.type === 'pdf') {
-    const pg = await pd.doc.getPage(pd.pdfPageNum);
-    const vp = pg.getViewport({ scale });
-    const off = document.createElement('canvas');
-    off.width = vp.width; off.height = vp.height;
-    await pg.render({ canvasContext: off.getContext('2d'), viewport: vp }).promise;
-    bgUrl = off.toDataURL(); canvasW = vp.width; canvasH = vp.height;
+    const pg   = await pd.doc.getPage(pd.pdfPageNum);
+    const vp   = pg.getViewport({ scale });           // logical (CSS) size
+    const vpHD = pg.getViewport({ scale: scale * dpr }); // physical (hi-res) size
+    const off  = document.createElement('canvas');
+    off.width  = vpHD.width; off.height = vpHD.height;
+    await pg.render({ canvasContext: off.getContext('2d'), viewport: vpHD }).promise;
+    bgUrl  = off.toDataURL('image/jpeg', 0.97);
+    canvasW = Math.round(vp.width); canvasH = Math.round(vp.height);
   } else { // image
-    canvasW = Math.round(pd.width * scale);
+    canvasW = Math.round(pd.width  * scale);
     canvasH = Math.round(pd.height * scale);
     const off = document.createElement('canvas');
-    off.width = canvasW; off.height = canvasH;
-    const img = new Image(); img.src = pd.imageUrl;
+    off.width  = canvasW * dpr; off.height = canvasH * dpr;
+    const img  = new Image(); img.src = pd.imageUrl;
     await new Promise(r => { img.onload = r; if (img.complete) r(); });
-    off.getContext('2d').drawImage(img, 0, 0, canvasW, canvasH);
-    bgUrl = off.toDataURL();
+    off.getContext('2d').drawImage(img, 0, 0, off.width, off.height);
+    bgUrl = off.toDataURL('image/jpeg', 0.97);
   }
 
   if (!fc) {
