@@ -1,0 +1,2093 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Annotator – Akıllı Tahta</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:        #f0f2f5;
+      --panel:     #ffffff;
+      --hover:     #f0f2f5;
+      --accent:    #e94560;
+      --blue:      #2563eb;
+      --green:     #059669;
+      --orange:    #f59e0b;
+      --border:    rgba(0,0,0,0.10);
+      --text:      #1e293b;
+      --muted:     #64748b;
+      --shadow:    0 1px 3px rgba(0,0,0,0.10);
+    }
+
+    html, body { height:100%; overflow:hidden; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg); color:var(--text); display:flex; flex-direction:column; }
+
+    /* ── HEADER ─────────────────────────────────── */
+    #header {
+      height:52px; background:var(--panel); border-bottom:1px solid var(--border);
+      display:flex; align-items:center; padding:0 14px; gap:8px;
+      flex-shrink:0; box-shadow:var(--shadow); z-index:20;
+    }
+    .logo { font-weight:700; font-size:15px; color:var(--accent); white-space:nowrap; display:flex; align-items:center; gap:6px; }
+    .header-sep { flex:1; }
+    .h-btn {
+      padding:5px 12px; border-radius:6px; border:1px solid var(--border);
+      background:var(--panel); color:var(--text); cursor:pointer; font-size:12px;
+      display:flex; align-items:center; gap:5px; transition:background .12s;
+      white-space:nowrap; box-shadow:var(--shadow); height:32px;
+    }
+    .h-btn:hover { background:var(--hover); }
+    .h-btn.primary { background:var(--blue); color:#fff; border-color:transparent; }
+    .h-btn.primary:hover { background:#1d4ed8; }
+    .h-btn.danger  { background:var(--accent); color:#fff; border-color:transparent; }
+    .h-btn.danger:hover  { background:#c9304d; }
+    .h-btn.organize { background:var(--panel); color:var(--text); }
+    #file-name { font-size:12px; color:var(--muted); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+    #file-name:hover { color:var(--text); text-decoration:underline dotted; }
+    #file-name-input { font-size:12px; color:var(--text); border:1px solid var(--accent); border-radius:4px; padding:1px 5px; width:160px; outline:none; display:none; }
+
+    /* ── LAYOUT ─────────────────────────────────── */
+    #layout { display:flex; flex:1; overflow:hidden; }
+
+    /* ── LEFT TOOLBAR ───────────────────────────── */
+    #toolbar {
+      width:52px; background:var(--panel); border-right:1px solid var(--border);
+      display:flex; flex-direction:column; align-items:center; padding:8px 0; gap:2px;
+      overflow-y:auto; flex-shrink:0; box-shadow:1px 0 4px rgba(0,0,0,0.04); z-index:5;
+    }
+    .t-sep { width:30px; height:1px; background:var(--border); margin:4px 0; }
+    .t-btn {
+      width:38px; height:38px; border-radius:8px; border:none; background:transparent;
+      color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center;
+      transition:all .12s; position:relative;
+    }
+    .t-btn svg { width:18px; height:18px; flex-shrink:0; }
+    .t-btn:hover { background:var(--hover); color:var(--text); }
+    .t-btn.active { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(233,69,96,.35); }
+    .t-btn.active svg { stroke:#fff; }
+    .t-btn::after {
+      content:attr(data-tip); position:absolute; left:calc(100% + 8px); top:50%;
+      transform:translateY(-50%); background:#1e293b; color:#fff; padding:4px 8px;
+      border-radius:5px; font-size:11px; white-space:nowrap; pointer-events:none;
+      opacity:0; transition:opacity .12s; z-index:999;
+    }
+    .t-btn:hover::after { opacity:1; }
+
+    /* ── CANVAS AREA ────────────────────────────── */
+    #canvas-area {
+      flex:1; overflow:auto; display:flex; align-items:flex-start;
+      justify-content:center; padding:28px; background:var(--bg);
+    }
+    #drop-zone {
+      width:520px; height:360px; border:2px dashed rgba(0,0,0,0.18); border-radius:14px;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:10px; cursor:pointer; transition:all .2s; color:var(--muted); margin:auto; background:#fff;
+    }
+    #drop-zone:hover, #drop-zone.drag-over { border-color:var(--accent); background:#fff5f7; color:var(--accent); }
+    #drop-zone p   { font-size:15px; font-weight:500; }
+    #drop-zone small { font-size:12px; }
+    #canvas-wrapper { display:none; position:relative; box-shadow:0 4px 24px rgba(0,0,0,0.15); border-radius:3px; overflow:hidden; }
+    #canvas-wrapper .canvas-container { display:block !important; }
+
+    /* ── RIGHT PANEL ────────────────────────────── */
+    #right-panel {
+      width:184px; background:var(--panel); border-left:1px solid var(--border);
+      display:flex; flex-direction:column; overflow-y:auto; flex-shrink:0;
+      transition:width .2s ease; overflow-x:hidden;
+    }
+    #right-panel.collapsed { width:40px; overflow-y:hidden; }
+    #right-panel.collapsed .panel-section { display:none; }
+    #rp-toggle-btn {
+      width:100%; min-height:36px; border:none; background:transparent;
+      border-bottom:1px solid var(--border); cursor:pointer;
+      display:flex; align-items:center; color:var(--muted);
+      flex-shrink:0; position:sticky; top:0; z-index:2;
+      background:var(--panel); transition:background .12s;
+      justify-content:center; padding:0;
+    }
+    #right-panel:not(.collapsed) #rp-toggle-btn {
+      justify-content:flex-end; padding-right:10px;
+    }
+    #rp-toggle-btn:hover { background:var(--hover); color:var(--text); }
+    #rp-toggle-btn svg { transition:transform .2s; flex-shrink:0; }
+    #right-panel:not(.collapsed) #rp-toggle-btn svg { transform:rotate(180deg); }
+    .panel-section { padding:11px 12px; border-bottom:1px solid var(--border); }
+    .panel-label { font-size:10px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-bottom:8px; font-weight:600; }
+    .color-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:4px; margin-bottom:8px; }
+    .swatch { width:26px; height:26px; border-radius:6px; cursor:pointer; border:2px solid transparent; transition:transform .12s,border-color .12s; }
+    .swatch:hover { transform:scale(1.15); }
+    .swatch.active { border-color:#1e293b; box-shadow:0 0 0 1px #fff inset; }
+    #custom-color { width:100%; height:30px; border:1px solid var(--border); border-radius:6px; cursor:pointer; background:transparent; padding:2px; }
+    .slider-row { display:flex; align-items:center; gap:8px; }
+    .slider-row input[type=range] { flex:1; accent-color:var(--accent); }
+    .slider-val { font-size:11px; color:var(--muted); min-width:30px; text-align:right; }
+    .toggle-row { display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:5px; }
+    .toggle-row input[type=checkbox] { accent-color:var(--accent); width:14px; height:14px; }
+    .act-btn {
+      width:100%; padding:7px 8px; border:none; border-radius:7px; cursor:pointer;
+      font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center;
+      gap:5px; margin-bottom:5px; transition:opacity .12s,transform .1s;
+    }
+    .act-btn:last-child { margin-bottom:0; }
+    .act-btn:hover { opacity:.88; transform:translateY(-1px); }
+    .act-btn.save-pg  { background:var(--blue); color:#fff; }
+    .act-btn.save-all { background:var(--green); color:#fff; }
+    .act-btn.reset-pg { background:var(--orange); color:#fff; }
+    .act-btn.reset-all{ background:var(--accent); color:#fff; }
+    .kbds { display:flex; flex-direction:column; gap:3px; }
+    .kbd-row { display:flex; align-items:center; justify-content:space-between; font-size:11px; color:var(--muted); }
+    kbd { background:var(--hover); border:1px solid var(--border); border-radius:3px; padding:1px 5px; font-size:10px; font-family:monospace; color:var(--text); }
+
+    /* ── BOTTOM AREA ────────────────────────────── */
+    #bottom-area { position:relative; flex-shrink:0; z-index:20; }
+    #thumb-tray {
+      position:absolute; bottom:100%; left:0; right:0; height:0; overflow:hidden;
+      background:var(--panel); border-top:1px solid var(--border);
+      box-shadow:0 -4px 16px rgba(0,0,0,0.08); transition:height .22s ease;
+      display:flex; align-items:center; gap:10px; padding:0; overflow-x:auto; overflow-y:hidden;
+    }
+    #thumb-tray::-webkit-scrollbar { height:4px; }
+    #thumb-tray::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    #bottom-area:hover #thumb-tray { height:148px; padding:10px 16px; }
+    .thumb-item { flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; border-radius:6px; padding:4px; transition:background .12s; }
+    .thumb-item:hover { background:var(--hover); }
+    .thumb-item.active { outline:2px solid var(--accent); }
+    .thumb-img { width:72px; height:98px; object-fit:contain; background:#fff; border:1px solid var(--border); border-radius:3px; display:block; }
+    .thumb-num { font-size:10px; color:var(--muted); font-weight:500; }
+    .thumb-item.active .thumb-num { color:var(--accent); font-weight:700; }
+    #bottom-nav {
+      height:46px; background:var(--panel); border-top:1px solid var(--border);
+      display:flex; align-items:center; justify-content:center; gap:10px;
+      box-shadow:0 -1px 4px rgba(0,0,0,0.06);
+    }
+    .nav-btn { padding:5px 18px; border-radius:20px; border:1px solid var(--border); background:var(--panel); color:var(--text); cursor:pointer; font-size:13px; transition:background .12s; }
+    .nav-btn:hover { background:var(--hover); }
+    .nav-btn:disabled { opacity:.35; cursor:not-allowed; }
+    #page-info { font-size:13px; color:var(--muted); min-width:80px; text-align:center; }
+    #zoom-info  { font-size:12px; color:var(--muted); min-width:48px; text-align:center; }
+
+    /* ── ORGANIZE OVERLAY ───────────────────────── */
+    #organize-overlay {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5);
+      z-index:100; align-items:center; justify-content:center;
+    }
+    #organize-overlay.show { display:flex; }
+    #organize-panel {
+      background:#fff; border-radius:14px; width:92vw; max-width:1040px; height:88vh;
+      display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.25);
+    }
+    #organize-head {
+      padding:14px 20px; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between; flex-shrink:0; gap:10px;
+    }
+    #organize-head h2 { font-size:15px; font-weight:700; }
+    #org-count-badge { font-size:11px; color:var(--muted); font-weight:400; margin-left:6px; }
+    .org-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .org-act-btn {
+      padding:5px 12px; border-radius:6px; border:1px solid var(--border);
+      background:var(--panel); color:var(--text); cursor:pointer; font-size:12px;
+      display:flex; align-items:center; gap:4px; font-weight:500; transition:background .12s;
+    }
+    .org-act-btn:hover { background:var(--hover); }
+    .org-act-btn.apply { background:var(--blue); color:#fff; border-color:transparent; }
+    .org-act-btn.apply:hover { background:#1d4ed8; }
+    .org-act-btn.cancel { background:transparent; color:var(--muted); }
+    #organize-grid {
+      flex:1; overflow-y:auto; padding:20px;
+      display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:16px; align-content:start;
+    }
+    .org-card {
+      position:relative; display:flex; flex-direction:column; align-items:center; gap:6px;
+      padding:8px; border:2px solid transparent; border-radius:10px; cursor:grab;
+      transition:all .15s; background:#f8f9fa; user-select:none;
+    }
+    .org-card:hover  { border-color:var(--blue); background:#f0f4ff; }
+    .org-card.dragging  { opacity:.35; cursor:grabbing; }
+    .org-card.drag-over { border-color:var(--accent); background:#fff5f7; transform:scale(1.02); }
+    .org-thumb { width:92px; height:124px; object-fit:contain; background:#fff; border:1px solid #e2e8f0; border-radius:4px; pointer-events:none; display:block; }
+    .org-num { font-size:11px; color:var(--muted); pointer-events:none; text-align:center; }
+    .org-del {
+      position:absolute; top:4px; right:4px; width:22px; height:22px; border-radius:50%;
+      border:none; background:rgba(233,69,96,.12); color:var(--accent); cursor:pointer;
+      font-size:15px; line-height:1; display:none; align-items:center; justify-content:center; font-weight:700;
+    }
+    .org-card:hover .org-del { display:flex; }
+    .org-badge {
+      position:absolute; top:4px; left:4px; font-size:9px; font-weight:700; padding:2px 5px;
+      border-radius:3px; color:#fff; pointer-events:none;
+    }
+    .org-badge.pdf   { background:#e94560; }
+    .org-badge.img   { background:#2563eb; }
+    .org-badge.word  { background:#059669; }
+    .org-loading { grid-column:1/-1; text-align:center; color:var(--muted); font-size:13px; padding:20px; }
+
+    /* ── SIGNATURE OVERLAY ──────────────────────── */
+    #sig-overlay {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45);
+      z-index:200; align-items:center; justify-content:center;
+    }
+    #sig-overlay.show { display:flex; }
+    #sig-modal {
+      background:#fff; border-radius:14px; width:500px; max-width:95vw;
+      max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.2);
+    }
+    #sig-head {
+      padding:16px 20px; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+    }
+    #sig-head span { font-size:15px; font-weight:700; }
+    #sig-head button { width:28px; height:28px; border-radius:50%; border:none; background:var(--hover); cursor:pointer; font-size:16px; color:var(--muted); display:flex; align-items:center; justify-content:center; }
+    #sig-head button:hover { background:#e2e8f0; }
+    #sig-body { padding:20px; }
+    #sig-upload-area {
+      border:2px dashed rgba(0,0,0,0.18); border-radius:10px; padding:28px 20px;
+      text-align:center; cursor:pointer; color:var(--muted); transition:all .2s;
+      display:flex; flex-direction:column; align-items:center; gap:8px;
+    }
+    #sig-upload-area:hover { border-color:var(--blue); color:var(--blue); background:#f0f4ff; }
+    #sig-upload-area svg { opacity:.5; }
+    #sig-upload-area p { font-size:14px; font-weight:500; }
+    #sig-upload-area small { font-size:12px; }
+    #saved-sigs-header { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); font-weight:700; margin:18px 0 10px; }
+    #saved-sigs-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:10px; }
+    .sig-card { border:1px solid var(--border); border-radius:8px; padding:10px; background:#f8f9fa; }
+    .sig-card img { width:100%; height:72px; object-fit:contain; background:#fff; border-radius:4px; border:1px solid #e2e8f0; display:block; }
+    .sig-btns { display:flex; gap:6px; margin-top:7px; }
+    .sig-use-btn { flex:1; padding:5px 0; border:none; border-radius:5px; background:var(--blue); color:#fff; font-size:11px; font-weight:600; cursor:pointer; }
+    .sig-use-btn:hover { background:#1d4ed8; }
+    .sig-del-btn { flex:1; padding:5px 0; border:1px solid var(--border); border-radius:5px; background:transparent; color:var(--muted); font-size:11px; cursor:pointer; }
+    .sig-del-btn:hover { background:var(--hover); }
+    .sig-empty { text-align:center; color:var(--muted); font-size:13px; padding:16px; }
+
+    /* ── PROGRESS OVERLAY ───────────────────────── */
+    #progress-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:300; align-items:center; justify-content:center; }
+    #progress-overlay.show { display:flex; }
+    #progress-box { background:#fff; border-radius:12px; padding:28px 36px; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.2); min-width:220px; }
+    #progress-box p { font-size:14px; color:var(--muted); margin-top:8px; }
+    #progress-bar-wrap { width:160px; height:6px; background:var(--hover); border-radius:3px; overflow:hidden; margin:12px auto 0; }
+    #progress-bar { height:100%; background:var(--blue); border-radius:3px; transition:width .2s; }
+
+    ::-webkit-scrollbar { width:6px; height:6px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:rgba(0,0,0,0.15); border-radius:3px; }
+
+    /* ── TEXT LAYER ──────────────────────────────── */
+    #pdf-text-layer {
+      position:absolute; top:0; left:0; overflow:hidden;
+      pointer-events:none; user-select:none; z-index:2;
+    }
+    #pdf-text-layer span {
+      color:transparent; position:absolute; white-space:pre;
+      cursor:text; transform-origin:0% 0%; line-height:1;
+    }
+    /* custom selection highlight drawn by JS */
+    .tl-sel-highlight {
+      position:absolute; background:rgba(37,99,235,0.28);
+      pointer-events:none; z-index:21;
+    }
+    #pdf-text-layer.text-active { pointer-events:auto; z-index:20; cursor:text; }
+
+    /* ── SNIP OVERLAY ───────────────────────────── */
+    #snip-overlay {
+      display:none; position:fixed; inset:0; z-index:50; cursor:crosshair;
+    }
+    #snip-overlay.active { display:block; }
+    #snip-sel {
+      display:none; position:fixed; pointer-events:none; z-index:51;
+      border:2px solid #2563eb; background:rgba(37,99,235,0.07);
+      border-radius:2px;
+    }
+    /* dim everything outside canvas when snip active */
+    #snip-overlay::before {
+      content:''; position:fixed; inset:0;
+      background:rgba(0,0,0,0.18);
+      pointer-events:none;
+    }
+
+    /* ── TRANSLATE POPUP ────────────────────────── */
+    #translate-popup {
+      display:none; position:fixed; z-index:500;
+      background:#fff; border:1px solid var(--border); border-radius:10px;
+      padding:10px 12px; gap:6px; flex-direction:column;
+      box-shadow:0 6px 20px rgba(0,0,0,0.15); width:300px;
+    }
+    #translate-popup.show { display:flex; }
+    #tp-row1 { display:flex; align-items:center; gap:8px; }
+    #tp-preview {
+      font-size:12px; color:var(--muted); overflow:hidden;
+      text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0;
+    }
+    #tp-lang-badge {
+      font-size:11px; font-weight:700; color:var(--blue);
+      background:#eff6ff; border-radius:5px; padding:2px 7px;
+      white-space:nowrap; flex-shrink:0; letter-spacing:.3px;
+    }
+    .tp-btn {
+      padding:5px 11px; border:none; border-radius:6px; cursor:pointer;
+      font-size:12px; font-weight:600; white-space:nowrap; flex-shrink:0;
+    }
+    .tp-btn.copy { background:var(--hover); color:var(--text); border:1px solid var(--border); }
+    .tp-btn.copy:hover { background:#e2e8f0; }
+    #tp-close { width:22px; height:22px; border-radius:50%; border:none; background:transparent; cursor:pointer; color:var(--muted); font-size:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    #tp-close:hover { background:var(--hover); }
+    #tp-result {
+      display:none; font-size:13px; color:var(--text); line-height:1.5;
+      border-top:1px solid var(--border); padding-top:8px; margin-top:2px;
+      max-height:130px; overflow-y:auto; word-break:break-word;
+    }
+    #tp-result.show { display:block; }
+    #tp-result.loading { color:var(--muted); font-style:italic; }
+    #tp-lang-select {
+      display:none; gap:6px; border-top:1px solid var(--border);
+      padding-top:8px; margin-top:2px;
+    }
+    #tp-lang-select.show { display:flex; }
+    #tp-lang-select span { font-size:12px; color:var(--muted); flex:1; align-self:center; }
+    .tp-lang-btn {
+      padding:5px 12px; border:1px solid var(--border); border-radius:6px;
+      cursor:pointer; font-size:12px; font-weight:600; background:#fff;
+      color:var(--text); flex-shrink:0;
+    }
+    .tp-lang-btn:hover { background:var(--blue); color:#fff; border-color:var(--blue); }
+
+    /* ── TOAST ──────────────────────────────────── */
+    #toast {
+      position:fixed; bottom:68px; left:50%; transform:translateX(-50%) translateY(8px);
+      background:#1e293b; color:#fff; padding:8px 20px; border-radius:20px;
+      font-size:13px; white-space:nowrap; opacity:0; transition:all .22s;
+      z-index:999; pointer-events:none;
+    }
+    #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+    /* ── t-btn colour variants ───────────────────── */
+    .t-btn.active-blue { background:var(--blue) !important; box-shadow:0 2px 8px rgba(37,99,235,.35); }
+    .t-btn.active-blue svg { stroke:#fff; }
+
+    /* ── TEXT FORMAT BAR ─────────────────────────── */
+    #text-format-bar {
+      display:none; position:fixed; z-index:400;
+      background:#fff; border:1px solid var(--border); border-radius:9px;
+      padding:5px 10px; gap:5px; align-items:center;
+      box-shadow:0 4px 16px rgba(0,0,0,0.12);
+    }
+    #text-format-bar.show { display:flex; }
+    #tf-family {
+      font-size:12px; border:1px solid var(--border); border-radius:5px;
+      padding:3px 6px; background:#fff; color:var(--text); cursor:pointer;
+      max-width:130px;
+    }
+    #tf-size {
+      font-size:12px; border:1px solid var(--border); border-radius:5px;
+      padding:3px 5px; background:#fff; color:var(--text);
+      width:48px; text-align:center;
+    }
+    .tf-sep { width:1px; height:18px; background:var(--border); flex-shrink:0; }
+    .tf-btn {
+      width:28px; height:28px; border:1px solid transparent; border-radius:5px;
+      background:transparent; cursor:pointer; font-size:13px; font-weight:700;
+      color:var(--text); display:flex; align-items:center; justify-content:center;
+      flex-shrink:0; transition:background .12s;
+    }
+    .tf-btn:hover { background:var(--hover); border-color:var(--border); }
+    .tf-btn.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+    #tf-color {
+      width:28px; height:28px; border:1px solid var(--border); border-radius:5px;
+      padding:2px; cursor:pointer; background:transparent; flex-shrink:0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────────────── -->
+<div id="header">
+  <span class="logo">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)" stroke="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8" fill="none" stroke="#fff" stroke-width="1.5"/></svg>
+    PDF Annotator
+  </span>
+
+  <button class="h-btn" onclick="document.getElementById('file-input').click()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    PDF Aç
+  </button>
+  <input type="file" id="file-input" accept=".pdf" style="display:none">
+  <span id="file-name" title="Adı değiştirmek için tıklayın" onclick="startRenameFile()">— dosya seçilmedi —</span>
+  <input id="file-name-input" type="text" onblur="endRenameFile()" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){cancelRenameFile();}">
+
+  <div class="header-sep"></div>
+
+  <button class="h-btn" onclick="undo()" title="Ctrl+Z">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+    Geri Al
+  </button>
+  <button class="h-btn" onclick="redo()" title="Ctrl+Y">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+    İleri Al
+  </button>
+
+  <button class="h-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Tam Ekran (F)">
+    <svg id="fs-icon-expand" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+    <svg id="fs-icon-compress" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 0 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+    <span id="fs-label">Tam Ekran</span>
+  </button>
+
+  <button class="h-btn organize" onclick="openOrganize()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    Sayfaları Düzenle
+  </button>
+
+  <button class="h-btn primary" onclick="savePDF()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    PDF'yi Kaydet
+  </button>
+  <button class="h-btn danger" onclick="confirmReset()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    Temizle
+  </button>
+</div>
+
+<!-- ── LAYOUT ───────────────────────────────────────────── -->
+<div id="layout">
+
+  <!-- Left Toolbar -->
+  <div id="toolbar">
+    <button class="t-btn active" id="t-select" data-tool="select" data-tip="Seç (V)" onclick="setTool('select')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-7 1-4 7z"/></svg>
+    </button>
+    <button class="t-btn" id="t-pen" data-tool="pen" data-tip="Kalem (P)" onclick="setTool('pen')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+    </button>
+    <button class="t-btn" id="t-highlight" data-tool="highlight" data-tip="Vurgulayıcı (H)" onclick="setTool('highlight')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h3l6-6"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
+    </button>
+    <button class="t-btn" id="t-eraser" data-tool="eraser" data-tip="Silgi (E)" onclick="setTool('eraser')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+    </button>
+    <div class="t-sep"></div>
+    <button class="t-btn" id="t-line" data-tool="line" data-tip="Çizgi (L)" onclick="setTool('line')">
+      <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="19" x2="19" y2="5"/></svg>
+    </button>
+    <button class="t-btn" id="t-arrow" data-tool="arrow" data-tip="Ok (A)" onclick="setTool('arrow')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+    </button>
+    <button class="t-btn" id="t-rect" data-tool="rect" data-tip="Dikdörtgen (R)" onclick="setTool('rect')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
+    </button>
+    <button class="t-btn" id="t-circle" data-tool="circle" data-tip="Daire (C)" onclick="setTool('circle')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg>
+    </button>
+    <button class="t-btn" id="t-text" data-tool="text" data-tip="Metin (T)" onclick="setTool('text')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+    </button>
+    <div class="t-sep"></div>
+    <button class="t-btn" id="t-sig" data-tip="İmza Ekle (S)" onclick="openSigModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 17c2-4 4-4 5.5 0s3.5 4 5 0 3-4 4.5 0"/>
+        <line x1="3" y1="21" x2="21" y2="21"/>
+      </svg>
+    </button>
+    <button class="t-btn" id="t-snip" data-tip="Alan Kopyala (X)" onclick="activateSnip()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+        <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+        <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+        <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+      </svg>
+    </button>
+    <button class="t-btn" id="t-translate" data-tip="Metin Çevir (Q)" onclick="toggleTranslateMode()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/>
+        <path d="M7 2h1"/><path d="m22 22-5-10-5 10"/>
+        <path d="M14 18h6"/>
+      </svg>
+    </button>
+    <div class="t-sep"></div>
+    <button class="t-btn" data-tip="Yakınlaştır (+)" onclick="zoom(+0.25)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    </button>
+    <button class="t-btn" data-tip="Uzaklaştır (−)" onclick="zoom(-0.25)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    </button>
+  </div>
+
+  <!-- Canvas Area -->
+  <div id="canvas-area" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      <p>PDF dosyasını buraya sürükleyin</p>
+      <small>veya tıklayarak seçin</small>
+    </div>
+    <div id="canvas-wrapper">
+      <canvas id="main-canvas"></canvas>
+      <div id="pdf-text-layer"></div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="right-panel" class="collapsed">
+    <button id="rp-toggle-btn" onclick="toggleRightPanel()" title="Seçenekler paneli">
+      <!-- chevron-right: collapsed = expand, expanded = collapse (rotated via CSS) -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="16" height="16">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+    </button>
+    <div class="panel-section">
+      <div class="panel-label">Renk</div>
+      <div class="color-grid" id="color-grid"></div>
+      <input type="color" id="custom-color" value="#e94560" oninput="setCustomColor(this.value)">
+    </div>
+    <div class="panel-section">
+      <div class="panel-label">Kalınlık</div>
+      <div class="slider-row"><input type="range" id="sw-slider" min="1" max="24" value="3" oninput="setStrokeWidth(+this.value)"><span class="slider-val" id="sw-val">3px</span></div>
+    </div>
+    <div class="panel-section">
+      <div class="panel-label">Opaklık</div>
+      <div class="slider-row"><input type="range" id="op-slider" min="10" max="100" value="100" oninput="setOpacity(+this.value)"><span class="slider-val" id="op-val">100%</span></div>
+    </div>
+    <div class="panel-section">
+      <div class="panel-label">Şekil</div>
+      <div class="toggle-row"><span>Dolu şekil</span><input type="checkbox" id="fill-toggle"></div>
+    </div>
+    <div class="panel-section">
+      <div class="panel-label">Dışa Aktar</div>
+      <button class="act-btn save-pg"  onclick="savePagePNG()">PNG – Bu Sayfa</button>
+      <button class="act-btn save-all" onclick="savePDF()">PDF – Tüm Sayfalar</button>
+    </div>
+    <div class="panel-section">
+      <div class="panel-label">Sıfırla</div>
+      <button class="act-btn reset-pg"  onclick="confirmReset()">Bu Sayfayı Temizle</button>
+      <button class="act-btn reset-all" onclick="confirmResetAll()">Tümünü Temizle</button>
+    </div>
+    <div class="panel-section" style="flex:1">
+      <div class="panel-label">Kısayollar</div>
+      <div class="kbds">
+        <div class="kbd-row"><span>Seç</span><kbd>V</kbd></div>
+        <div class="kbd-row"><span>Kalem</span><kbd>P</kbd></div>
+        <div class="kbd-row"><span>Vurgula</span><kbd>H</kbd></div>
+        <div class="kbd-row"><span>Silgi</span><kbd>E</kbd></div>
+        <div class="kbd-row"><span>Çizgi</span><kbd>L</kbd></div>
+        <div class="kbd-row"><span>Ok</span><kbd>A</kbd></div>
+        <div class="kbd-row"><span>Dikdörtgen</span><kbd>R</kbd></div>
+        <div class="kbd-row"><span>Daire</span><kbd>C</kbd></div>
+        <div class="kbd-row"><span>Metin</span><kbd>T</kbd></div>
+        <div class="kbd-row"><span>İmza</span><kbd>S</kbd></div>
+        <div class="kbd-row"><span>Alan Kopyala</span><kbd>X</kbd></div>
+        <div class="kbd-row"><span>Çeviri Modu</span><kbd>Q</kbd></div>
+        <div class="kbd-row"><span>Tam Ekran</span><kbd>F</kbd></div>
+        <div class="kbd-row"><span>İptal</span><kbd>Esc</kbd></div>
+        <div class="kbd-row"><span>Geri Al</span><kbd>Ctrl+Z</kbd></div>
+        <div class="kbd-row"><span>İleri Al</span><kbd>Ctrl+Y</kbd></div>
+        <div class="kbd-row"><span>Kaydet PDF</span><kbd>Ctrl+S</kbd></div>
+        <div class="kbd-row"><span>Sayfa ◀▶</span><kbd>← →</kbd></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── BOTTOM AREA ───────────────────────────────────────── -->
+<div id="bottom-area">
+  <div id="thumb-tray"></div>
+  <div id="bottom-nav">
+    <button class="nav-btn" id="prev-btn" onclick="prevPage()" disabled>◀ Önceki</button>
+    <span id="page-info">— / —</span>
+    <button class="nav-btn" id="next-btn" onclick="nextPage()" disabled>Sonraki ▶</button>
+    <span id="zoom-info" style="margin-left:8px">125%</span>
+  </div>
+</div>
+
+<!-- ── ORGANIZE OVERLAY ──────────────────────────────────── -->
+<div id="organize-overlay">
+  <div id="organize-panel">
+    <div id="organize-head">
+      <h2>Sayfaları Düzenle <span id="org-count-badge"></span></h2>
+      <div class="org-actions">
+        <button class="org-act-btn" onclick="orgAddFromPDF()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          + PDF Ekle
+        </button>
+        <button class="org-act-btn" onclick="orgAddImage()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          + Resim Ekle
+        </button>
+        <button class="org-act-btn" onclick="orgAddWord()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>
+          + Word Ekle
+        </button>
+        <input type="file" id="org-pdf-input"  accept=".pdf"       style="display:none">
+        <input type="file" id="org-img-input"  accept="image/*"    style="display:none">
+        <input type="file" id="org-word-input" accept=".docx,.doc" style="display:none">
+        <button class="org-act-btn apply" onclick="applyOrganize()">✓ Uygula</button>
+        <button class="org-act-btn cancel" onclick="closeOrganize()">✕ İptal</button>
+      </div>
+    </div>
+    <div id="organize-grid"></div>
+  </div>
+</div>
+
+<!-- ── SIGNATURE OVERLAY ─────────────────────────────────── -->
+<div id="sig-overlay">
+  <div id="sig-modal">
+    <div id="sig-head">
+      <span>İmza Ekle</span>
+      <button onclick="closeSigModal()">✕</button>
+    </div>
+    <div id="sig-body">
+      <div id="sig-upload-area" onclick="document.getElementById('sig-file-input').click()">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <p>İmza dosyası yükleyin</p>
+        <small>PNG veya JPG — şeffaf arka planlı önerilir</small>
+      </div>
+      <input type="file" id="sig-file-input" accept="image/png,image/jpeg,image/jpg" style="display:none">
+      <div id="saved-sigs-header">Kayıtlı İmzalar</div>
+      <div id="saved-sigs-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── PROGRESS OVERLAY ──────────────────────────────────── -->
+<div id="progress-overlay">
+  <div id="progress-box">
+    <div style="font-size:15px;font-weight:700;color:#1e293b">PDF Oluşturuluyor…</div>
+    <p id="progress-text">Hazırlanıyor…</p>
+    <div id="progress-bar-wrap"><div id="progress-bar" style="width:0%"></div></div>
+  </div>
+</div>
+
+<!-- ── SNIP OVERLAY ──────────────────────────────────────── -->
+<div id="snip-overlay"></div>
+<div id="snip-sel"></div>
+
+<!-- ── TRANSLATE POPUP ───────────────────────────────────── -->
+<div id="translate-popup">
+  <div id="tp-row1">
+    <span id="tp-preview"></span>
+    <span id="tp-lang-badge"></span>
+    <button class="tp-btn copy" onclick="copyTranslateText()">Kopyala</button>
+    <button id="tp-close" onclick="hideTranslatePopup()">✕</button>
+  </div>
+  <div id="tp-result"></div>
+  <div id="tp-lang-select">
+    <span>Dil seç:</span>
+    <button class="tp-lang-btn" onclick="doInlineTranslate('en','tr')">EN → TR</button>
+    <button class="tp-lang-btn" onclick="doInlineTranslate('tr','en')">TR → EN</button>
+  </div>
+</div>
+
+<!-- ── TEXT FORMAT BAR ──────────────────────────────────── -->
+<div id="text-format-bar">
+  <select id="tf-family" onchange="applyTextProp('fontFamily', this.value)">
+    <option value="Arial">Arial</option>
+    <option value="Times New Roman">Times New Roman</option>
+    <option value="Courier New">Courier New</option>
+    <option value="Georgia">Georgia</option>
+    <option value="Verdana">Verdana</option>
+    <option value="Trebuchet MS">Trebuchet MS</option>
+    <option value="Impact">Impact</option>
+  </select>
+  <input id="tf-size" type="number" min="6" max="300" value="16"
+         onchange="applyTextProp('fontSize', Math.max(6,+this.value))"
+         oninput="applyTextProp('fontSize', Math.max(6,+this.value))">
+  <div class="tf-sep"></div>
+  <button class="tf-btn" id="tf-bold"   title="Kalın"        onclick="toggleTextFmt('bold')">B</button>
+  <button class="tf-btn" id="tf-italic" title="İtalik"       onclick="toggleTextFmt('italic')" style="font-style:italic">I</button>
+  <button class="tf-btn" id="tf-under"  title="Altı çizili"  onclick="toggleTextFmt('underline')" style="text-decoration:underline">U</button>
+  <div class="tf-sep"></div>
+  <input type="color" id="tf-color" value="#000000" title="Metin rengi"
+         oninput="applyTextProp('fill', this.value)">
+</div>
+
+<!-- ── TOAST ─────────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<!-- ── WORD RENDER CONTAINER (hidden) ─────────────────────── -->
+<div id="word-render-host" style="position:fixed;left:-9999px;top:0;width:794px;background:#fff;padding:48px 56px;font-family:Georgia,serif;font-size:14px;line-height:1.6;color:#111;pointer-events:none;z-index:-1;"></div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+/* ═══════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════ */
+let pdfDoc       = null;   // main loaded PDF
+let pages        = [];     // page descriptor array
+let currentPage  = 1;      // 1-based index into pages[]
+let scale        = 1.25;
+let fc           = null;   // Fabric canvas
+
+let currentTool    = 'select';
+let currentColor   = '#e94560';
+let currentWidth   = 3;
+let currentOpacity = 1.0;
+
+let pageAnnotations = {};
+let undoStack = [], redoStack = [];
+let isShapeDrawing = false, shapeOrigin = null, tempShape = null;
+
+/* page descriptor:
+  { type:'pdf'|'image', doc, pdfPageNum, imageUrl, width, height, thumbnail } */
+
+/* ═══════════════════════════════════════════════════════════
+   COLOUR PALETTE
+═══════════════════════════════════════════════════════════ */
+const PALETTE = ['#e94560','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#ffffff','#111827'];
+(function buildPalette() {
+  const grid = document.getElementById('color-grid');
+  PALETTE.forEach(hex => {
+    const d = document.createElement('div');
+    d.className = 'swatch' + (hex === currentColor ? ' active' : '');
+    d.style.background = hex;
+    if (hex === '#ffffff') d.style.border = '2px solid #e2e8f0';
+    d.dataset.color = hex;
+    d.onclick = () => selectSwatch(d, hex);
+    grid.appendChild(d);
+  });
+})();
+
+function selectSwatch(el, color) {
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  currentColor = color;
+  document.getElementById('custom-color').value = color;
+  applyBrushColor();
+}
+function setCustomColor(color) {
+  currentColor = color;
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+  applyBrushColor();
+}
+function applyBrushColor() {
+  if (!fc) return;
+  if (fc.isDrawingMode && fc.freeDrawingBrush) fc.freeDrawingBrush.color = resolveColor();
+  fc.getActiveObjects().forEach(o => {
+    if (o.stroke) o.set('stroke', currentColor);
+    if (o.fill && o.fill !== 'transparent') o.set('fill', currentColor);
+  });
+  fc.renderAll();
+}
+function resolveColor() {
+  if (currentTool === 'highlight') return hexToRgba(currentColor, 0.38);
+  return hexToRgba(currentColor, currentOpacity);
+}
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SLIDERS
+═══════════════════════════════════════════════════════════ */
+function setStrokeWidth(v) {
+  currentWidth = v;
+  document.getElementById('sw-val').textContent = v + 'px';
+  if (!fc) return;
+  if (fc.freeDrawingBrush) fc.freeDrawingBrush.width = currentTool === 'highlight' ? v * 6 : v;
+  fc.getActiveObjects().forEach(o => o.set('strokeWidth', v));
+  fc.renderAll();
+}
+function setOpacity(v) {
+  currentOpacity = v / 100;
+  document.getElementById('op-val').textContent = v + '%';
+  if (!fc) return;
+  if (fc.freeDrawingBrush) fc.freeDrawingBrush.color = resolveColor();
+  fc.getActiveObjects().forEach(o => o.set('opacity', currentOpacity));
+  fc.renderAll();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FILE LOADING (main PDF)
+═══════════════════════════════════════════════════════════ */
+document.getElementById('file-input').addEventListener('change', e => {
+  const f = e.target.files[0]; if (f) loadFile(f); e.target.value = '';
+});
+function onDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('drag-over'); }
+function onDragLeave() { document.getElementById('drop-zone').classList.remove('drag-over'); }
+function onDrop(e) {
+  e.preventDefault(); document.getElementById('drop-zone').classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type === 'application/pdf') loadFile(f);
+}
+
+async function loadFile(file) {
+  document.getElementById('file-name').textContent = file.name;
+  const data = await file.arrayBuffer();
+  pdfDoc = await pdfjsLib.getDocument({ data }).promise;
+  pages = [];
+  pageAnnotations = {};
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    const pg = await pdfDoc.getPage(i);
+    const vp = pg.getViewport({ scale: 1 });
+    pages.push({ type:'pdf', doc:pdfDoc, pdfPageNum:i,
+                 width:vp.width, height:vp.height, thumbnail:null });
+  }
+  currentPage = 1;
+  fitWidthScale();
+  await renderPage(1);
+  document.getElementById('drop-zone').style.display = 'none';
+  document.getElementById('canvas-wrapper').style.display = 'block';
+  updateNav();
+  buildThumbTray();
+  generateThumbnails();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER PAGE
+═══════════════════════════════════════════════════════════ */
+async function renderPage(num) {
+  if (fc) pageAnnotations[currentPage] = fc.toJSON();
+  currentPage = num;
+  const pd = pages[num - 1];
+
+  let bgUrl, canvasW, canvasH;
+
+  if (pd.type === 'pdf') {
+    const pg = await pd.doc.getPage(pd.pdfPageNum);
+    const vp = pg.getViewport({ scale });
+    const off = document.createElement('canvas');
+    off.width = vp.width; off.height = vp.height;
+    await pg.render({ canvasContext: off.getContext('2d'), viewport: vp }).promise;
+    bgUrl = off.toDataURL(); canvasW = vp.width; canvasH = vp.height;
+  } else { // image
+    canvasW = Math.round(pd.width * scale);
+    canvasH = Math.round(pd.height * scale);
+    const off = document.createElement('canvas');
+    off.width = canvasW; off.height = canvasH;
+    const img = new Image(); img.src = pd.imageUrl;
+    await new Promise(r => { img.onload = r; if (img.complete) r(); });
+    off.getContext('2d').drawImage(img, 0, 0, canvasW, canvasH);
+    bgUrl = off.toDataURL();
+  }
+
+  if (!fc) {
+    fc = new fabric.Canvas('main-canvas', { width:canvasW, height:canvasH, selection:true });
+    setupFabricListeners();
+  } else {
+    fc.setWidth(canvasW); fc.setHeight(canvasH); fc.clear();
+  }
+
+  await new Promise(resolve => {
+    fabric.Image.fromURL(bgUrl, img => {
+      img.scaleX = canvasW / img.width; img.scaleY = canvasH / img.height;
+      fc.setBackgroundImage(img, () => { fc.renderAll(); resolve(); });
+    });
+  });
+
+  const saved = pageAnnotations[num];
+  if (saved && saved.objects && saved.objects.length) {
+    await new Promise(resolve => {
+      fabric.util.enlivenObjects(saved.objects, objs => {
+        objs.forEach(o => fc.add(o)); fc.renderAll(); resolve();
+      });
+    });
+  }
+
+  setTool(currentTool);
+  undoStack = []; redoStack = [];
+  updateNav();
+  document.getElementById('zoom-info').textContent = Math.round(scale * 100) + '%';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════════════════════ */
+function updateNav() {
+  const n = pages.length;
+  document.getElementById('page-info').textContent = n ? `${currentPage} / ${n}` : '— / —';
+  document.getElementById('prev-btn').disabled = currentPage <= 1;
+  document.getElementById('next-btn').disabled = !n || currentPage >= n;
+  updateActiveThumb();
+}
+function updateActiveThumb() {
+  document.querySelectorAll('.thumb-item').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById(`thumb-wrap-${currentPage}`);
+  if (el) { el.classList.add('active'); el.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' }); }
+}
+async function prevPage() { if (currentPage > 1) { saveCurrentAnnotations(); await renderPage(currentPage - 1); } }
+async function nextPage() { if (currentPage < pages.length) { saveCurrentAnnotations(); await renderPage(currentPage + 1); } }
+async function goToPage(n) { if (n < 1 || n > pages.length || n === currentPage) return; saveCurrentAnnotations(); await renderPage(n); }
+function saveCurrentAnnotations() { if (fc) pageAnnotations[currentPage] = fc.toJSON(); }
+
+/* ═══════════════════════════════════════════════════════════
+   THUMBNAILS
+═══════════════════════════════════════════════════════════ */
+function buildThumbTray() {
+  const tray = document.getElementById('thumb-tray');
+  tray.innerHTML = '';
+  pages.forEach((pd, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'thumb-item' + (i + 1 === currentPage ? ' active' : '');
+    wrap.id = `thumb-wrap-${i + 1}`;
+    wrap.onclick = () => goToPage(i + 1);
+    const img = document.createElement('img');
+    img.className = 'thumb-img'; img.id = `thumb-img-${i + 1}`; img.alt = `Sayfa ${i + 1}`;
+    if (pd.thumbnail) img.src = pd.thumbnail;
+    const num = document.createElement('div');
+    num.className = 'thumb-num'; num.textContent = i + 1;
+    wrap.appendChild(img); wrap.appendChild(num); tray.appendChild(wrap);
+  });
+}
+
+async function generateThumbnails() {
+  const S = 0.18;
+  for (let i = 0; i < pages.length; i++) {
+    const pd = pages[i];
+    if (pd.thumbnail) continue;
+    try {
+      if (pd.type === 'pdf') {
+        const pg = await pd.doc.getPage(pd.pdfPageNum);
+        const vp = pg.getViewport({ scale: S });
+        const off = document.createElement('canvas');
+        off.width = vp.width; off.height = vp.height;
+        await pg.render({ canvasContext: off.getContext('2d'), viewport: vp }).promise;
+        pd.thumbnail = off.toDataURL('image/jpeg', 0.7);
+      } else if (pd.imageUrl) {
+        pd.thumbnail = await scaledThumbAsync(pd.imageUrl, 72, 98);
+      }
+      const el = document.getElementById(`thumb-img-${i + 1}`);
+      if (el && pd.thumbnail) el.src = pd.thumbnail;
+    } catch(e) { /* skip */ }
+  }
+}
+
+function scaledThumbAsync(url, w, h) {
+  return new Promise(resolve => {
+    const img = new Image(); img.onload = () => {
+      const ratio = Math.min(w / img.width, h / img.height);
+      const off = document.createElement('canvas');
+      off.width = Math.round(img.width * ratio); off.height = Math.round(img.height * ratio);
+      off.getContext('2d').drawImage(img, 0, 0, off.width, off.height);
+      resolve(off.toDataURL('image/jpeg', 0.7));
+    };
+    img.onerror = () => resolve('');
+    img.src = url;
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ZOOM
+═══════════════════════════════════════════════════════════ */
+function zoom(delta) {
+  scale = Math.min(4, Math.max(0.25, scale + delta));
+  if (pages.length) renderPage(currentPage);
+}
+function fitWidthScale() {
+  const ca = document.getElementById('canvas-area');
+  if (!ca || !pages.length) return;
+  const pd = pages[currentPage > 0 ? currentPage - 1 : 0];
+  const availW = Math.max(100, ca.clientWidth - 56); // 28px padding each side
+  scale = Math.max(0.25, Math.min(4, availW / pd.width));
+}
+function toggleRightPanel() {
+  document.getElementById('right-panel').classList.toggle('collapsed');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOOL SYSTEM
+═══════════════════════════════════════════════════════════ */
+function setTool(tool) {
+  currentTool = tool;
+  document.querySelectorAll('.t-btn[data-tool]').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('t-' + tool);
+  if (btn) btn.classList.add('active');
+  if (!fc) return;
+  // Exit any in-progress text editing and clean up empty boxes
+  const _activeObj = fc.getActiveObject();
+  if (_activeObj && _activeObj.isEditing) {
+    _activeObj.exitEditing();
+    if (!_activeObj.text || _activeObj.text === '') {
+      fc.remove(_activeObj); fc.renderAll();
+    }
+  }
+  hideTextFormatBar();
+  fc.isDrawingMode = false; fc.selection = false; fc.defaultCursor = 'crosshair';
+  fc.off('mouse:down'); fc.off('mouse:move'); fc.off('mouse:up');
+  fc.getObjects().forEach(o => { o.selectable = false; o.evented = false; });
+  // Text layer active in select mode or translate mode
+  const _textOn = (tool === 'select') || translateMode;
+  setTextLayerActive(_textOn);
+  switch (tool) {
+    case 'select':
+      fc.selection = true; fc.defaultCursor = 'default';
+      fc.getObjects().forEach(o => { o.selectable = true; o.evented = true; }); fc.renderAll(); break;
+    case 'pen':
+      fc.isDrawingMode = true; fc.freeDrawingBrush = new fabric.PencilBrush(fc);
+      fc.freeDrawingBrush.color = hexToRgba(currentColor, currentOpacity);
+      fc.freeDrawingBrush.width = currentWidth;
+      fc.freeDrawingBrush.strokeLineCap = 'round'; fc.freeDrawingBrush.strokeLineJoin = 'round'; break;
+    case 'highlight':
+      fc.isDrawingMode = true; fc.freeDrawingBrush = new fabric.PencilBrush(fc);
+      fc.freeDrawingBrush.color = hexToRgba(currentColor, 0.38);
+      fc.freeDrawingBrush.width = currentWidth * 6;
+      fc.freeDrawingBrush.strokeLineCap = 'square'; fc.freeDrawingBrush.strokeLineJoin = 'square'; break;
+    case 'eraser':  setupEraser();     break;
+    case 'line': case 'arrow': case 'rect': case 'circle': setupShape(tool); break;
+    case 'text':
+      // Re-enable existing IText objects so they can be clicked to edit
+      fc.getObjects().forEach(o => {
+        if (o.type === 'i-text' || o.type === 'textbox') { o.selectable = true; o.evented = true; }
+      });
+      setupText(); break;
+  }
+}
+
+function setupEraser() {
+  fc.defaultCursor = 'cell'; let active = false;
+  // Use opt.pointer (already in canvas coords) instead of raw DOM event
+  fc.on('mouse:down', opt => { active = true; eraseAt(opt.pointer); });
+  fc.on('mouse:move', opt => { if (active) eraseAt(opt.pointer); });
+  fc.on('mouse:up',   ()  => { if (active) { active = false; pushUndo(); } });
+}
+function eraseAt(p) {
+  if (!p) return;
+  const r = Math.max(14, currentWidth * 5); // generous hit radius
+  fc.getObjects().slice().forEach(obj => {
+    const b = obj.getBoundingRect(true);
+    // Expand check so thin lines/arrows are hittable
+    if (p.x >= b.left - r && p.x <= b.left + b.width  + r &&
+        p.y >= b.top  - r && p.y <= b.top  + b.height + r) {
+      fc.remove(obj);
+    }
+  });
+  fc.renderAll();
+}
+
+function setupShape(type) {
+  fc.defaultCursor = 'crosshair';
+  fc.on('mouse:down', opt => {
+    const p = fc.getPointer(opt.e); isShapeDrawing = true; shapeOrigin = p;
+    const fill = document.getElementById('fill-toggle').checked ? currentColor : 'transparent';
+    const base = { left:p.x, top:p.y, stroke:currentColor, strokeWidth:currentWidth, fill, opacity:currentOpacity, selectable:false, evented:false };
+    if      (type === 'rect')   tempShape = new fabric.Rect({...base, width:1, height:1, rx:3, ry:3});
+    else if (type === 'circle') tempShape = new fabric.Ellipse({...base, rx:1, ry:1});
+    else    tempShape = new fabric.Line([p.x,p.y,p.x,p.y], {stroke:currentColor,strokeWidth:currentWidth,opacity:currentOpacity,selectable:false,evented:false});
+    if (tempShape) fc.add(tempShape);
+  });
+  fc.on('mouse:move', opt => {
+    if (!isShapeDrawing || !tempShape) return;
+    const p = fc.getPointer(opt.e), ox = shapeOrigin.x, oy = shapeOrigin.y;
+    if      (type === 'rect')   tempShape.set({left:Math.min(ox,p.x),top:Math.min(oy,p.y),width:Math.abs(p.x-ox),height:Math.abs(p.y-oy)});
+    else if (type === 'circle') tempShape.set({left:Math.min(ox,p.x),top:Math.min(oy,p.y),rx:Math.abs(p.x-ox)/2,ry:Math.abs(p.y-oy)/2});
+    else    tempShape.set({x2:p.x, y2:p.y});
+    fc.renderAll();
+  });
+  fc.on('mouse:up', opt => {
+    if (!isShapeDrawing) return; isShapeDrawing = false;
+    if (type === 'arrow' && tempShape) {
+      const p = fc.getPointer(opt.e), angle = Math.atan2(p.y-shapeOrigin.y, p.x-shapeOrigin.x), as = Math.max(currentWidth*4,12);
+      fc.add(new fabric.Triangle({left:p.x,top:p.y,width:as,height:as,fill:currentColor,angle:(angle*180/Math.PI)+90,originX:'center',originY:'center',selectable:false,evented:false,opacity:currentOpacity}));
+    }
+    tempShape = null; pushUndo(); fc.renderAll();
+  });
+}
+
+function setupText() {
+  fc.defaultCursor = 'text';
+  let _skipNextCreate = false; // flag: editing just exited, skip creating new box
+
+  fc.on('mouse:down', opt => {
+    // Clicking on an existing IText → enter editing mode
+    if (opt.target && (opt.target.type === 'i-text' || opt.target.type === 'textbox')) {
+      const t = opt.target;
+      fc.setActiveObject(t);
+      t.enterEditing();
+      showTextFormatBar(t);
+      _skipNextCreate = false;
+      return;
+    }
+    if (opt.target) return; // other objects – ignore
+    if (_skipNextCreate) { _skipNextCreate = false; return; }
+
+    const p   = fc.getPointer(opt.e);
+    const sz  = Math.max(currentWidth * 5, 16);
+    const col = document.getElementById('tf-color')?.value || currentColor;
+    const t   = new fabric.IText('', {
+      left: p.x, top: p.y,
+      fontSize: sz, fill: col, opacity: currentOpacity,
+      fontFamily: document.getElementById('tf-family')?.value || 'Arial',
+      selectable: true, evented: true
+    });
+    fc.add(t);
+    fc.setActiveObject(t);
+    t.enterEditing();
+    fc.renderAll();
+    showTextFormatBar(t);
+
+    t.on('editing:exited', () => {
+      // Fabric exits editing BEFORE mouse:down fires for the next click,
+      // so set a flag to skip the next create if the box was empty
+      if (!t.text || t.text === '') {
+        fc.remove(t);
+        fc.renderAll();
+        hideTextFormatBar();
+        _skipNextCreate = true;
+        // Clear the flag after a short delay in case user clicks far later
+        setTimeout(() => { _skipNextCreate = false; }, 200);
+      } else {
+        pushUndo();
+      }
+    });
+  });
+}
+
+function setupFabricListeners() {
+  fc.on('path:created',    () => pushUndo());
+  fc.on('object:modified', () => pushUndo());
+
+  // Text format bar – show/hide on IText selection
+  const isText = o => o && (o.type === 'i-text' || o.type === 'textbox');
+  fc.on('selection:created', e => { if (isText(e.selected?.[0])) showTextFormatBar(e.selected[0]); });
+  fc.on('selection:updated', e => {
+    if (isText(e.selected?.[0])) showTextFormatBar(e.selected[0]);
+    else hideTextFormatBar();
+  });
+  fc.on('selection:cleared', () => hideTextFormatBar());
+  fc.on('object:moving',     e => { if (isText(e.target)) positionTextFormatBar(e.target); });
+  // Double-click IText in select mode → enter editing
+  fc.on('mouse:dblclick', e => {
+    if (e.target && isText(e.target) && currentTool === 'select') {
+      e.target.enterEditing(); showTextFormatBar(e.target);
+    }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (!fc) return;
+      // Don't intercept if an IText is currently in edit mode (let it handle chars)
+      const ao = fc.getActiveObject();
+      if (ao && ao.isEditing) return;
+      const objs = fc.getActiveObjects();
+      if (!objs.length) return;
+      objs.forEach(o => fc.remove(o));
+      fc.discardActiveObject(); fc.renderAll(); pushUndo();
+    }
+  });
+}
+
+/* ── Text Format Bar ─────────────────────────────────────── */
+function positionTextFormatBar(obj) {
+  const bar = document.getElementById('text-format-bar');
+  if (!bar || !obj || !fc) return;
+  const canvasEl = fc.upperCanvasEl || fc.lowerCanvasEl;
+  if (!canvasEl) return;
+  const cr  = canvasEl.getBoundingClientRect();
+  const br  = obj.getBoundingRect();
+  const scX = cr.width  / fc.width;
+  const scY = cr.height / fc.height;
+  const ox  = cr.left + br.left * scX;
+  const oy  = cr.top  + br.top  * scY;
+  const bw  = 310;
+  const x   = Math.max(4, Math.min(ox, window.innerWidth  - bw - 8));
+  const y   = Math.max(50, oy - 46);
+  bar.style.left = x + 'px';
+  bar.style.top  = y + 'px';
+}
+function showTextFormatBar(obj) {
+  const bar = document.getElementById('text-format-bar');
+  if (!bar || !obj) return;
+  // Populate inputs from object
+  const fam = document.getElementById('tf-family');
+  const sz  = document.getElementById('tf-size');
+  const col = document.getElementById('tf-color');
+  if (fam) fam.value = obj.fontFamily || 'Arial';
+  if (sz)  sz.value  = Math.round(obj.fontSize || 16);
+  if (col) {
+    // Fabric fill can be hex, rgb, or named color — try to convert to hex
+    const fill = obj.fill || '#000000';
+    try {
+      // If it's already a valid hex, use it; otherwise keep as-is
+      col.value = /^#[0-9a-f]{3,6}$/i.test(fill) ? fill : rgbToHex(fill) || '#000000';
+    } catch(_) { col.value = '#000000'; }
+  }
+  document.getElementById('tf-bold')  ?.classList.toggle('active', obj.fontWeight  === 'bold');
+  document.getElementById('tf-italic')?.classList.toggle('active', obj.fontStyle   === 'italic');
+  document.getElementById('tf-under') ?.classList.toggle('active', !!obj.underline);
+  positionTextFormatBar(obj);
+  bar.classList.add('show');
+}
+function rgbToHex(rgb) {
+  const m = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  if (!m) return null;
+  return '#' + [m[1],m[2],m[3]].map(n => (+n).toString(16).padStart(2,'0')).join('');
+}
+function hideTextFormatBar() {
+  document.getElementById('text-format-bar')?.classList.remove('show');
+}
+function applyTextProp(prop, value) {
+  const obj = fc?.getActiveObject();
+  if (!obj || (obj.type !== 'i-text' && obj.type !== 'textbox')) return;
+  // Apply to selection if editing, else to whole object
+  if (obj.isEditing && obj.getSelectedText?.() !== '') {
+    obj.setSelectionStyles({ [prop]: value });
+  } else {
+    obj.set(prop, value);
+  }
+  fc.renderAll();
+}
+function toggleTextFmt(fmt) {
+  const obj = fc?.getActiveObject();
+  if (!obj || (obj.type !== 'i-text' && obj.type !== 'textbox')) return;
+  const map = { bold: ['fontWeight','bold','normal'], italic: ['fontStyle','italic','normal'], underline: ['underline',true,false] };
+  const [prop, on, off] = map[fmt];
+  const cur = obj[prop];
+  const next = (cur === on || cur === true) ? off : on;
+  obj.set(prop, next);
+  document.getElementById('tf-' + fmt)?.classList.toggle('active', next === on || next === true);
+  fc.renderAll();
+  pushUndo();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UNDO / REDO
+═══════════════════════════════════════════════════════════ */
+function pushUndo() {
+  if (!fc) return;
+  undoStack.push(fc.getObjects().map(o => o.toJSON())); redoStack = [];
+}
+function undo() { if (!fc || !undoStack.length) return; redoStack.push(fc.getObjects().map(o => o.toJSON())); restoreObjects(undoStack.pop()); }
+function redo() { if (!fc || !redoStack.length) return; undoStack.push(fc.getObjects().map(o => o.toJSON())); restoreObjects(redoStack.pop()); }
+function restoreObjects(defs) {
+  fc.getObjects().slice().forEach(o => fc.remove(o));
+  if (!defs || !defs.length) { fc.renderAll(); return; }
+  fabric.util.enlivenObjects(defs, objs => { objs.forEach(o => fc.add(o)); fc.renderAll(); setTool(currentTool); });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SAVE
+═══════════════════════════════════════════════════════════ */
+function savePagePNG() {
+  if (!fc) return;
+  saveCurrentAnnotations();
+  const link = document.createElement('a');
+  link.download = `sayfa_${currentPage}.png`;
+  link.href = fc.toDataURL({ format:'png', quality:1 });
+  link.click();
+}
+
+async function savePDF() {
+  if (!pages.length) return;
+  saveCurrentAnnotations();
+  const overlay = document.getElementById('progress-overlay');
+  const bar = document.getElementById('progress-bar');
+  const txt = document.getElementById('progress-text');
+  overlay.classList.add('show');
+
+  const { jsPDF } = window.jspdf;
+  const origPage = currentPage;
+  let pdf = null;
+
+  for (let i = 0; i < pages.length; i++) {
+    const pd = pages[i];
+    txt.textContent = `Sayfa ${i+1} / ${pages.length} işleniyor…`;
+    bar.style.width = (i / pages.length * 100) + '%';
+
+    await renderPage(i + 1);
+    await new Promise(r => setTimeout(r, 120));
+
+    const imgData = fc.toDataURL({ format:'jpeg', quality:0.92 });
+    const W = pd.width, H = pd.height;
+
+    if (!pdf) {
+      pdf = new jsPDF({ orientation: W > H ? 'landscape' : 'portrait', unit:'pt', format:[W,H] });
+    } else {
+      pdf.addPage([W, H], W > H ? 'landscape' : 'portrait');
+    }
+    pdf.addImage(imgData, 'JPEG', 0, 0, W, H);
+  }
+
+  bar.style.width = '100%';
+  txt.textContent = 'İndiriliyor…';
+  await new Promise(r => setTimeout(r, 180));
+  await renderPage(origPage);
+  overlay.classList.remove('show');
+  bar.style.width = '0%';
+  if (pdf) {
+    const fn = (document.getElementById('file-name')?.textContent || 'annotated.pdf').replace(/\.pdf$/i,'') + '.pdf';
+    pdf.save(fn);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESET
+═══════════════════════════════════════════════════════════ */
+function confirmReset() {
+  if (!fc) return;
+  if (!confirm('Bu sayfadaki tüm çizimler silinecek. Emin misiniz?')) return;
+  pushUndo(); fc.getObjects().slice().forEach(o => fc.remove(o)); fc.renderAll(); pageAnnotations[currentPage] = null;
+}
+function confirmResetAll() {
+  if (!fc) return;
+  if (!confirm('TÜM sayfalardaki çizimler silinecek. Geri alınamaz!')) return;
+  pageAnnotations = {}; fc.getObjects().slice().forEach(o => fc.remove(o)); fc.renderAll(); undoStack = []; redoStack = [];
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ORGANIZE OVERLAY
+═══════════════════════════════════════════════════════════ */
+let draftPages = [];
+let dragSrcIdx  = -1;
+
+function openOrganize() {
+  if (!pages.length) return;
+  saveCurrentAnnotations();
+  draftPages = [...pages];
+  buildOrganizeGrid();
+  document.getElementById('organize-overlay').classList.add('show');
+}
+function closeOrganize() { document.getElementById('organize-overlay').classList.remove('show'); }
+
+function buildOrganizeGrid() {
+  const grid = document.getElementById('organize-grid');
+  grid.innerHTML = '';
+  document.getElementById('org-count-badge').textContent = `(${draftPages.length} sayfa)`;
+
+  draftPages.forEach((pd, i) => {
+    const card = document.createElement('div');
+    card.className = 'org-card'; card.draggable = true; card.dataset.idx = i;
+
+    card.ondragstart = () => { dragSrcIdx = i; setTimeout(() => card.classList.add('dragging'), 0); };
+    card.ondragend   = () => card.classList.remove('dragging');
+    card.ondragover  = e => { e.preventDefault(); card.classList.add('drag-over'); };
+    card.ondragleave = () => card.classList.remove('drag-over');
+    card.ondrop      = e => {
+      e.preventDefault(); card.classList.remove('drag-over');
+      if (dragSrcIdx === i || dragSrcIdx < 0) return;
+      const item = draftPages.splice(dragSrcIdx, 1)[0];
+      draftPages.splice(dragSrcIdx < i ? i - 1 : i, 0, item);
+      dragSrcIdx = -1; buildOrganizeGrid();
+    };
+
+    const img = document.createElement('img');
+    img.className = 'org-thumb';
+    img.src = pd.thumbnail || '';
+    img.alt = '';
+
+    const badge = document.createElement('span');
+    badge.className = 'org-badge ' + pd.type.replace('pdf','pdf');
+    badge.textContent = pd.type === 'pdf' ? 'PDF' : 'IMG';
+
+    const num = document.createElement('div');
+    num.className = 'org-num'; num.textContent = `Sayfa ${i + 1}`;
+
+    const del = document.createElement('button');
+    del.className = 'org-del'; del.innerHTML = '×'; del.title = 'Sayfayı Sil';
+    del.onclick = e => { e.stopPropagation(); draftPages.splice(i, 1); buildOrganizeGrid(); };
+
+    card.appendChild(img); card.appendChild(badge); card.appendChild(num); card.appendChild(del);
+    grid.appendChild(card);
+  });
+}
+
+function applyOrganize() {
+  saveCurrentAnnotations();
+  const newAnnotations = {};
+  draftPages.forEach((pd, i) => {
+    const oldIdx = pages.indexOf(pd);
+    if (oldIdx !== -1 && pageAnnotations[oldIdx + 1]) newAnnotations[i + 1] = pageAnnotations[oldIdx + 1];
+  });
+  pageAnnotations = newAnnotations;
+  pages = draftPages;
+  if (currentPage > pages.length) currentPage = pages.length;
+  if (currentPage < 1) currentPage = 1;
+  closeOrganize();
+  buildThumbTray();
+  generateThumbnails();
+  if (pages.length) renderPage(currentPage);
+}
+
+/* ── Add pages from another PDF ── */
+function orgAddFromPDF() {
+  const input = document.getElementById('org-pdf-input');
+  input.onchange = async e => {
+    const f = e.target.files[0]; if (!f) return; e.target.value = '';
+    showOrgLoading('PDF yükleniyor…');
+    try {
+      const data = await f.arrayBuffer();
+      const doc  = await pdfjsLib.getDocument({ data }).promise;
+      for (let i = 1; i <= doc.numPages; i++) {
+        const pg = await doc.getPage(i);
+        const vp = pg.getViewport({ scale: 1 });
+        draftPages.push({ type:'pdf', doc, pdfPageNum:i, width:vp.width, height:vp.height, thumbnail:null });
+      }
+      await genDraftThumbs();
+      buildOrganizeGrid();
+    } catch(e2) { alert('PDF yüklenemedi: ' + e2.message); }
+  };
+  input.click();
+}
+
+/* ── Add image as page ── */
+function orgAddImage() {
+  const input = document.getElementById('org-img-input');
+  input.onchange = async e => {
+    const files = Array.from(e.target.files); if (!files.length) return; e.target.value = '';
+    showOrgLoading('Resimler yükleniyor…');
+    for (const f of files) {
+      const url = await fileToDataURL(f);
+      const pd  = await imageDescriptor(url);
+      draftPages.push(pd);
+    }
+    await genDraftThumbs();
+    buildOrganizeGrid();
+  };
+  input.click();
+}
+
+/* ── Add Word (.docx) as page ── */
+function orgAddWord() {
+  const input = document.getElementById('org-word-input');
+  input.onchange = async e => {
+    const f = e.target.files[0]; if (!f) return; e.target.value = '';
+    showOrgLoading('Word belgesi işleniyor… (bu biraz sürebilir)');
+    try {
+      const buf  = await f.arrayBuffer();
+      const res  = await mammoth.convertToHtml({ arrayBuffer: buf });
+      const host = document.getElementById('word-render-host');
+      host.innerHTML = res.value;
+      host.style.display = 'block';
+      // small delay to allow layout
+      await new Promise(r => setTimeout(r, 200));
+      const canvas = await html2canvas(host, { scale: 1, useCORS: true, logging: false });
+      host.style.display = ''; host.innerHTML = '';
+      const url = canvas.toDataURL('image/jpeg', 0.88);
+      const pd  = { type:'image', imageUrl:url, width:canvas.width, height:canvas.height, thumbnail:null };
+      pd.thumbnail = await scaledThumbAsync(url, 92, 124);
+      draftPages.push(pd);
+      buildOrganizeGrid();
+    } catch(e2) { alert('Word belgesi işlenemedi: ' + e2.message); }
+  };
+  input.click();
+}
+
+function showOrgLoading(msg) {
+  const grid = document.getElementById('organize-grid');
+  const el = document.createElement('div'); el.className = 'org-loading'; el.textContent = msg;
+  grid.appendChild(el);
+}
+
+async function imageDescriptor(url) {
+  const img = new Image(); img.src = url;
+  await new Promise(r => { img.onload = r; if (img.complete) r(); });
+  return { type:'image', imageUrl:url, width:img.naturalWidth, height:img.naturalHeight, thumbnail:null };
+}
+
+async function genDraftThumbs() {
+  for (const pd of draftPages) {
+    if (pd.thumbnail) continue;
+    if (pd.type === 'pdf') {
+      try {
+        const pg = await pd.doc.getPage(pd.pdfPageNum);
+        const vp = pg.getViewport({ scale: 0.18 });
+        const off = document.createElement('canvas');
+        off.width = vp.width; off.height = vp.height;
+        await pg.render({ canvasContext: off.getContext('2d'), viewport: vp }).promise;
+        pd.thumbnail = off.toDataURL('image/jpeg', 0.7);
+      } catch(e) {}
+    } else if (pd.imageUrl) {
+      pd.thumbnail = await scaledThumbAsync(pd.imageUrl, 92, 124);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SIGNATURE SYSTEM
+═══════════════════════════════════════════════════════════ */
+const SIG_KEY = 'pdf_annotations_sigs_v1';
+
+function getSavedSigs() { try { return JSON.parse(localStorage.getItem(SIG_KEY) || '[]'); } catch { return []; } }
+function saveSigs(arr)   { localStorage.setItem(SIG_KEY, JSON.stringify(arr)); }
+
+function openSigModal() {
+  buildSavedSigsGrid();
+  document.getElementById('sig-overlay').classList.add('show');
+}
+function closeSigModal() { document.getElementById('sig-overlay').classList.remove('show'); }
+
+document.getElementById('sig-file-input').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return; e.target.value = '';
+  const url  = await fileToDataURL(f);
+  const sigs = getSavedSigs();
+  sigs.unshift(url);
+  if (sigs.length > 12) sigs.length = 12;
+  saveSigs(sigs);
+  buildSavedSigsGrid();
+});
+
+// Also support drag-drop on sig upload area
+const sigUpload = document.getElementById('sig-upload-area');
+sigUpload.ondragover  = e => { e.preventDefault(); sigUpload.style.borderColor = 'var(--blue)'; };
+sigUpload.ondragleave = () => { sigUpload.style.borderColor = ''; };
+sigUpload.ondrop      = async e => {
+  e.preventDefault(); sigUpload.style.borderColor = '';
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) {
+    const url = await fileToDataURL(f);
+    const sigs = getSavedSigs(); sigs.unshift(url);
+    if (sigs.length > 12) sigs.length = 12;
+    saveSigs(sigs); buildSavedSigsGrid();
+  }
+};
+
+function buildSavedSigsGrid() {
+  const sigs = getSavedSigs();
+  const grid = document.getElementById('saved-sigs-grid');
+  if (!sigs.length) {
+    grid.innerHTML = '<div class="sig-empty">Henüz kayıtlı imza yok.<br>Yukarıdan PNG/JPG yükleyin.</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  sigs.forEach((url, i) => {
+    const card = document.createElement('div'); card.className = 'sig-card';
+    const img = document.createElement('img'); img.src = url;
+    const btns = document.createElement('div'); btns.className = 'sig-btns';
+    const useBtn = document.createElement('button'); useBtn.className = 'sig-use-btn'; useBtn.textContent = 'Kullan';
+    useBtn.onclick = () => insertSignature(url);
+    const delBtn = document.createElement('button'); delBtn.className = 'sig-del-btn'; delBtn.textContent = 'Sil';
+    delBtn.onclick = () => {
+      const s = getSavedSigs(); s.splice(i, 1); saveSigs(s); buildSavedSigsGrid();
+    };
+    btns.appendChild(useBtn); btns.appendChild(delBtn);
+    card.appendChild(img); card.appendChild(btns); grid.appendChild(card);
+  });
+}
+
+function insertSignature(url) {
+  if (!fc) { closeSigModal(); return; }
+  closeSigModal();
+  fabric.Image.fromURL(url, img => {
+    const maxW = Math.min(200, fc.width / 3);
+    img.scaleToWidth(maxW);
+    img.set({
+      left: fc.width  / 2 - img.getScaledWidth()  / 2,
+      top:  fc.height / 2 - img.getScaledHeight() / 2,
+      selectable: true, evented: true
+    });
+    fc.add(img); fc.setActiveObject(img); fc.renderAll();
+    setTool('select'); pushUndo();
+  }, { crossOrigin: 'anonymous' });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════════════════ */
+function fileToDataURL(file) {
+  return new Promise(resolve => {
+    const r = new FileReader(); r.onload = e => resolve(e.target.result); r.readAsDataURL(file);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUTS
+═══════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 'z') { e.preventDefault(); undo(); }
+    if (e.key === 'y') { e.preventDefault(); redo(); }
+    if (e.key === 's') { e.preventDefault(); savePDF(); }
+    return;
+  }
+  switch (e.key) {
+    case 'v': setTool('select');    break;
+    case 'p': setTool('pen');       break;
+    case 'h': setTool('highlight'); break;
+    case 'e': setTool('eraser');    break;
+    case 'l': setTool('line');      break;
+    case 'a': setTool('arrow');     break;
+    case 'r': setTool('rect');      break;
+    case 'c': setTool('circle');    break;
+    case 't': setTool('text');      break;
+    case 's': openSigModal();       break;
+    case '+': case '=': zoom(+0.25); break;
+    case '-':           zoom(-0.25); break;
+    case 'ArrowRight': case 'ArrowDown': nextPage(); break;
+    case 'ArrowLeft':  case 'ArrowUp':   prevPage(); break;
+  }
+});
+
+/* Close overlays on backdrop click */
+document.getElementById('organize-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeOrganize(); });
+document.getElementById('sig-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeSigModal(); });
+
+/* ═══════════════════════════════════════════════════════════
+   FULLSCREEN
+═══════════════════════════════════════════════════════════ */
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen();
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const on = !!document.fullscreenElement;
+  document.getElementById('fs-icon-expand').style.display  = on ? 'none'  : '';
+  document.getElementById('fs-icon-compress').style.display = on ? '' : 'none';
+  document.getElementById('fs-label').textContent = on ? 'Küçült' : 'Tam Ekran';
+});
+
+/* ═══════════════════════════════════════════════════════════
+   TEXT LAYER (for translate mode)
+═══════════════════════════════════════════════════════════ */
+async function renderTextLayer(pdfPage, viewport) {
+  const tl = document.getElementById('pdf-text-layer');
+  if (!tl) return;
+  tl.innerHTML = '';
+  // PDF.js v3+ uses --scale-factor CSS variable; set it explicitly
+  const w = Math.ceil(viewport.width);
+  const h = Math.ceil(viewport.height);
+  tl.style.setProperty('--scale-factor', String(viewport.scale));
+  tl.style.width  = w + 'px';
+  tl.style.height = h + 'px';
+  try {
+    const textContent = await pdfPage.getTextContent();
+    const task = pdfjsLib.renderTextLayer({
+      textContent, container: tl, viewport, textDivs: []
+    });
+    if (task && task.promise) await task.promise;
+    else if (task && typeof task.then === 'function') await task;
+  } catch(e) { /* graceful – some PDFs have no text layer */ }
+  // Force pixel dimensions after PDF.js may have overwritten them
+  tl.style.width  = w + 'px';
+  tl.style.height = h + 'px';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TEXT SELECTION + TRANSLATE MODE
+   Uses custom Range-based selection (caretRangeFromPoint)
+   because native drag-select on transparent spans is unreliable.
+═══════════════════════════════════════════════════════════ */
+let translateMode     = false;
+let _lastTranslateText = '';
+let _tlSelStart       = null;   // {node, offset} at mousedown
+let _tlSelecting      = false;
+
+function setTextLayerActive(on) {
+  const tl = document.getElementById('pdf-text-layer');
+  if (!tl) return;
+  if (on) {
+    tl.classList.add('text-active');
+    if (fc && fc.upperCanvasEl) fc.upperCanvasEl.style.pointerEvents = 'none';
+    // Remove Fabric's user-select:none so it doesn't interfere
+    const cc = document.querySelector('.canvas-container');
+    const lc = document.querySelector('.lower-canvas');
+    if (cc) { cc.style.userSelect = ''; cc.style.webkitUserSelect = ''; }
+    if (lc) { lc.style.userSelect = ''; lc.style.webkitUserSelect = ''; }
+  } else {
+    tl.classList.remove('text-active');
+    if (fc && fc.upperCanvasEl) fc.upperCanvasEl.style.pointerEvents = '';
+    clearTlSelection();
+  }
+}
+
+function toggleTranslateMode() {
+  translateMode = !translateMode;
+  const btn = document.getElementById('t-translate');
+  if (translateMode) {
+    btn.classList.add('active-blue');
+    setTextLayerActive(true);
+    showToast('Çeviri modu etkin – metni sürükleyerek seçin');
+  } else {
+    btn.classList.remove('active-blue');
+    if (currentTool !== 'select') setTextLayerActive(false);
+    hideTranslatePopup();
+    clearTlSelection();
+  }
+}
+
+/* ── Custom drag-select on text layer ── */
+function clearTlSelection() {
+  _tlSelStart = null; _tlSelecting = false;
+  _lastTranslateText = '';
+  // Remove highlight boxes
+  document.querySelectorAll('.tl-sel-highlight').forEach(el => el.remove());
+  try { window.getSelection()?.removeAllRanges(); } catch(e) {}
+}
+
+function getTlRange(x, y) {
+  // caretRangeFromPoint gives us the exact text position under cursor
+  if (document.caretRangeFromPoint) return document.caretRangeFromPoint(x, y);
+  if (document.caretPositionFromPoint) {
+    const cp = document.caretPositionFromPoint(x, y);
+    if (!cp) return null;
+    const r = document.createRange();
+    r.setStart(cp.offsetNode, cp.offset);
+    r.collapse(true);
+    return r;
+  }
+  return null;
+}
+
+function drawTlHighlights(range) {
+  const tl = document.getElementById('pdf-text-layer');
+  if (!tl) return;
+  document.querySelectorAll('.tl-sel-highlight').forEach(el => el.remove());
+  if (!range || range.collapsed) return;
+  const tlRect = tl.getBoundingClientRect();
+  const rects  = Array.from(range.getClientRects());
+  rects.forEach(r => {
+    const box = document.createElement('div');
+    box.className = 'tl-sel-highlight';
+    box.style.left   = (r.left   - tlRect.left) + 'px';
+    box.style.top    = (r.top    - tlRect.top)  + 'px';
+    box.style.width  = r.width  + 'px';
+    box.style.height = r.height + 'px';
+    tl.appendChild(box);
+  });
+}
+
+(function setupTlSelection() {
+  const tl = document.getElementById('pdf-text-layer');
+  if (!tl) return;
+
+  tl.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (!tl.classList.contains('text-active')) return;
+    e.preventDefault(); // prevent browser's broken native drag-select
+    hideTranslatePopup();
+    clearTlSelection();
+    const r = getTlRange(e.clientX, e.clientY);
+    if (r) { _tlSelStart = { node: r.startContainer, offset: r.startOffset }; }
+    _tlSelecting = true;
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!_tlSelecting || !_tlSelStart) return;
+    const endR = getTlRange(e.clientX, e.clientY);
+    if (!endR) return;
+    try {
+      const startR = document.createRange();
+      startR.setStart(_tlSelStart.node, _tlSelStart.offset);
+      startR.collapse(true);
+      // Use compareBoundaryPoints to determine correct order
+      const cmp = startR.compareBoundaryPoints(Range.START_TO_START, endR);
+      const range = document.createRange();
+      if (cmp <= 0) {
+        range.setStart(_tlSelStart.node, _tlSelStart.offset);
+        range.setEnd(endR.startContainer, endR.startOffset);
+      } else {
+        range.setStart(endR.startContainer, endR.startOffset);
+        range.setEnd(_tlSelStart.node, _tlSelStart.offset);
+      }
+      drawTlHighlights(range);
+      // Store selected text
+      _lastTranslateText = range.toString().trim();
+      // Also update native selection for clipboard/copy
+      try {
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch(_) {}
+    } catch(err) {}
+  });
+
+  document.addEventListener('mouseup', e => {
+    if (!_tlSelecting) return;
+    _tlSelecting = false;
+    const text = _lastTranslateText || (window.getSelection()?.toString() || '').trim();
+    if (text.length > 1) {
+      _lastTranslateText = text;
+      // In translate mode: auto-show popup on mouseup
+      if (translateMode) {
+        const px = Math.min(e.clientX + 4, window.innerWidth  - 370);
+        const py = Math.min(e.clientY + 8, window.innerHeight - 70);
+        showTranslatePopup(text, px, py);
+      }
+    } else {
+      clearTlSelection();
+    }
+  });
+})();
+
+// Right-click on selected text inside canvas area → translate/copy popup
+document.addEventListener('contextmenu', e => {
+  const text = _lastTranslateText || (window.getSelection()?.toString() || '').trim();
+  if (!text) return;
+  const ca = document.getElementById('canvas-area');
+  if (!ca || !ca.contains(e.target)) return;
+  e.preventDefault();
+  _lastTranslateText = text;
+  const px = Math.min(e.clientX + 4, window.innerWidth  - 370);
+  const py = Math.min(e.clientY + 4, window.innerHeight - 70);
+  showTranslatePopup(text, px, py);
+});
+
+function showTranslatePopup(text, x, y) {
+  const popup   = document.getElementById('translate-popup');
+  const res     = document.getElementById('tp-result');
+  const badge   = document.getElementById('tp-lang-badge');
+  const langSel = document.getElementById('tp-lang-select');
+  document.getElementById('tp-preview').textContent = text.length > 40 ? text.slice(0,40) + '…' : text;
+  res.textContent = ''; res.className = '';
+  if (badge)   badge.textContent = '';
+  if (langSel) langSel.className  = '';
+  // Position popup, keep within viewport
+  const pw = 300, ph = 90;
+  const lx = Math.min(x, window.innerWidth  - pw - 8);
+  const ly = Math.min(y, window.innerHeight - ph - 8);
+  popup.style.left = Math.max(4, lx) + 'px';
+  popup.style.top  = Math.max(4, ly) + 'px';
+  popup.classList.add('show');
+  // Auto-translate immediately
+  doInlineTranslate();
+}
+function hideTranslatePopup() {
+  document.getElementById('translate-popup').classList.remove('show');
+  _lastTranslateText = '';
+  const res = document.getElementById('tp-result');
+  if (res) { res.textContent = ''; res.className = ''; }
+  const ls = document.getElementById('tp-lang-select');
+  if (ls)  ls.className = '';
+}
+async function doInlineTranslate(forceSl, forceTl) {
+  const text = _lastTranslateText;
+  if (!text) return;
+  const res     = document.getElementById('tp-result');
+  const badge   = document.getElementById('tp-lang-badge');
+  const langSel = document.getElementById('tp-lang-select');
+  if (!res) return;
+  if (badge)   badge.textContent = '';
+  if (langSel) langSel.className  = '';
+  res.textContent = 'Çevriliyor…';
+  res.className   = 'show loading';
+  try {
+    const sl  = forceSl || 'auto';
+    const tl  = forceTl || 'tr';
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
+    const r   = await fetch(url);
+    const j   = await r.json();
+    const detectedLang = j[2] || forceSl || null;
+
+    // If Turkish detected and no forced lang, re-translate to English
+    if (!forceSl && detectedLang === 'tr') {
+      await doInlineTranslate('tr', 'en');
+      return;
+    }
+
+    // If language can't be detected, show manual selection
+    if (!forceSl && (!detectedLang || detectedLang === 'und')) {
+      res.textContent = '';
+      res.className   = '';
+      if (langSel) langSel.className = 'show';
+      return;
+    }
+
+    const translated = j[0].map(c => c[0]).join('');
+    const actualSl   = forceSl || detectedLang;
+    const actualTl   = forceTl || 'tr';
+    if (badge) badge.textContent = `${actualSl.toUpperCase()} → ${actualTl.toUpperCase()}`;
+    res.textContent  = translated;
+    res.className    = 'show';
+    if (langSel) langSel.className = '';
+  } catch(e) {
+    res.textContent = 'Çeviri başarısız.';
+    res.className   = 'show';
+    if (langSel) langSel.className = 'show';
+  }
+}
+function copyTranslateText() {
+  if (!_lastTranslateText) return;
+  navigator.clipboard.writeText(_lastTranslateText).then(() => {
+    showToast('Metin kopyalandı ✓');
+    hideTranslatePopup();
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SNIP TOOL (area → clipboard)
+═══════════════════════════════════════════════════════════ */
+let snipActive = false;
+let snipStart  = null;
+
+function activateSnip() {
+  if (!fc) { showToast('Önce bir PDF açın'); return; }
+  snipActive = true;
+  const btn = document.getElementById('t-snip');
+  btn.classList.add('active');
+  document.getElementById('snip-overlay').classList.add('active');
+  showToast('Kopyalamak istediğiniz alanı seçin — ESC ile iptal');
+}
+function deactivateSnip() {
+  snipActive = false;
+  snipStart  = null;
+  document.getElementById('t-snip').classList.remove('active');
+  document.getElementById('snip-overlay').classList.remove('active');
+  const sel = document.getElementById('snip-sel');
+  sel.style.display = 'none';
+}
+
+(function setupSnip() {
+  const overlay = document.getElementById('snip-overlay');
+  const sel     = document.getElementById('snip-sel');
+
+  overlay.addEventListener('mousedown', e => {
+    if (!snipActive) return;
+    e.preventDefault();
+    snipStart = { x: e.clientX, y: e.clientY };
+    sel.style.cssText = `display:block; left:${e.clientX}px; top:${e.clientY}px; width:0; height:0;`;
+  });
+
+  overlay.addEventListener('mousemove', e => {
+    if (!snipStart) return;
+    const x = Math.min(snipStart.x, e.clientX);
+    const y = Math.min(snipStart.y, e.clientY);
+    const w = Math.abs(e.clientX - snipStart.x);
+    const h = Math.abs(e.clientY - snipStart.y);
+    sel.style.left = x + 'px'; sel.style.top = y + 'px';
+    sel.style.width = w + 'px'; sel.style.height = h + 'px';
+  });
+
+  overlay.addEventListener('mouseup', async e => {
+    if (!snipStart) return;
+    const sx = snipStart.x, sy = snipStart.y;
+    const ex = e.clientX,   ey = e.clientY;
+    deactivateSnip();
+
+    if (Math.abs(ex - sx) < 4 || Math.abs(ey - sy) < 4) return;
+
+    // Map screen → canvas coordinates
+    const wr  = document.getElementById('canvas-wrapper').getBoundingClientRect();
+    const cx1 = Math.max(0, Math.min(sx, ex) - wr.left);
+    const cy1 = Math.max(0, Math.min(sy, ey) - wr.top);
+    const cw  = Math.min(Math.abs(ex - sx), fc.width  - cx1);
+    const ch  = Math.min(Math.abs(ey - sy), fc.height - cy1);
+
+    if (cw < 2 || ch < 2) return;
+
+    try {
+      const dataURL = fc.toDataURL({ format:'png', left:cx1, top:cy1, width:cw, height:ch, multiplier:1 });
+      const blob    = await (await fetch(dataURL)).blob();
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      showToast('Seçilen alan panoya kopyalandı ✓');
+    } catch {
+      // Fallback: download
+      const link = document.createElement('a');
+      link.download = 'snip.png';
+      link.href = fc.toDataURL({ format:'png', left:cx1, top:cy1, width:cw, height:ch });
+      link.click();
+      showToast('PNG olarak indirildi');
+    }
+  });
+})();
+
+/* ═══════════════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════════════ */
+let _toastTimer = null;
+/* ── PDF Rename ── */
+let _origFileName = '';
+function startRenameFile() {
+  const span = document.getElementById('file-name');
+  const inp  = document.getElementById('file-name-input');
+  if (!inp) return;
+  _origFileName = span.textContent;
+  if (_origFileName === '— dosya seçilmedi —') return;
+  inp.value = _origFileName.replace(/\.pdf$/i, '');
+  span.style.display = 'none';
+  inp.style.display  = 'inline-block';
+  inp.select();
+}
+function endRenameFile() {
+  const span = document.getElementById('file-name');
+  const inp  = document.getElementById('file-name-input');
+  if (!inp) return;
+  let name = inp.value.trim();
+  if (!name) name = _origFileName.replace(/\.pdf$/i, '');
+  if (!name.toLowerCase().endsWith('.pdf')) name += '.pdf';
+  span.textContent   = name;
+  span.title         = 'Adı değiştirmek için tıklayın';
+  span.style.display = '';
+  inp.style.display  = 'none';
+}
+function cancelRenameFile() {
+  const span = document.getElementById('file-name');
+  const inp  = document.getElementById('file-name-input');
+  span.textContent   = _origFileName;
+  span.style.display = '';
+  inp.style.display  = 'none';
+}
+
+function showToast(msg, duration = 2600) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TEXT LAYER INTEGRATION – patch renderPage
+═══════════════════════════════════════════════════════════ */
+(function patchRenderPage() {
+  const _orig = renderPage;
+  window.renderPage = async function(num) {
+    await _orig(num);
+    // render text layer for PDF pages
+    const pd = pages[num - 1];
+    if (pd && pd.type === 'pdf') {
+      const pg = await pd.doc.getPage(pd.pdfPageNum);
+      const vp = pg.getViewport({ scale });
+      await renderTextLayer(pg, vp);
+    } else {
+      // clear text layer for image/blank pages
+      const tl = document.getElementById('pdf-text-layer');
+      if (tl) { tl.innerHTML = ''; }
+    }
+    // re-apply text layer state after render
+    setTextLayerActive(translateMode || currentTool === 'select');
+  };
+})();
+
+/* ── Extra keyboard shortcuts ── */
+document.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  if (e.key === 'Escape') {
+    if (snipActive)    { deactivateSnip(); }
+    if (translateMode) { toggleTranslateMode(); }
+    hideTranslatePopup();
+  }
+  if (!e.ctrlKey && !e.metaKey) {
+    if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+    if (e.key === 'x' || e.key === 'X') activateSnip();
+    if (e.key === 'q' || e.key === 'Q') toggleTranslateMode();
+  }
+});
+
+/* ── Scroll-to-next/prev page ── */
+(function() {
+  let _scrollNavLock = false;
+  const ca = document.getElementById('canvas-area');
+  if (!ca) return;
+  ca.addEventListener('wheel', e => {
+    if (_scrollNavLock) return;
+    // Only trigger when scrolled to boundary
+    const atBottom = ca.scrollTop + ca.clientHeight >= ca.scrollHeight - 4;
+    const atTop    = ca.scrollTop <= 4;
+    const goingDown = e.deltaY > 0;
+    const goingUp   = e.deltaY < 0;
+    if (goingDown && atBottom && currentPage < (pages && pages.length ? pages.length : (pdfDoc ? pdfDoc.numPages : 1))) {
+      _scrollNavLock = true;
+      renderPage(currentPage + 1).then(() => {
+        ca.scrollTop = 0;
+        setTimeout(() => { _scrollNavLock = false; }, 400);
+      });
+    } else if (goingUp && atTop && currentPage > 1) {
+      _scrollNavLock = true;
+      renderPage(currentPage - 1).then(() => {
+        ca.scrollTop = ca.scrollHeight;
+        setTimeout(() => { _scrollNavLock = false; }, 400);
+      });
+    }
+  }, { passive: true });
+})();
+</script>
+</body>
+</html>
