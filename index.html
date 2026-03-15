@@ -403,6 +403,45 @@
       width:28px; height:28px; border:1px solid var(--border); border-radius:5px;
       padding:2px; cursor:pointer; background:transparent; flex-shrink:0;
     }
+    /* ── SEARCH BAR ─────────────────────────────────── */
+    #search-bar {
+      position:fixed; top:60px; right:20px; z-index:600;
+      background:#fff; border:1px solid var(--border); border-radius:10px;
+      padding:6px 10px; display:none; align-items:center; gap:6px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.18); min-width:310px;
+    }
+    #search-bar.show { display:flex; }
+    #search-input {
+      flex:1; border:none; outline:none; font-size:13px;
+      color:var(--text); background:transparent; min-width:0;
+    }
+    #search-input::placeholder { color:var(--muted); }
+    #search-count {
+      font-size:11px; color:var(--muted); white-space:nowrap;
+      min-width:52px; text-align:right; flex-shrink:0;
+    }
+    #search-count.nomatch { color:var(--accent); }
+    .s-nav-btn {
+      width:26px; height:26px; border:1px solid var(--border); border-radius:5px;
+      background:transparent; cursor:pointer; color:var(--muted); flex-shrink:0;
+      display:flex; align-items:center; justify-content:center; transition:background .12s;
+    }
+    .s-nav-btn:hover { background:var(--hover); color:var(--text); }
+    .s-nav-btn:disabled { opacity:.35; cursor:not-allowed; }
+    #search-close-btn {
+      width:24px; height:24px; border-radius:50%; border:none; background:transparent;
+      cursor:pointer; color:var(--muted); font-size:15px; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center;
+    }
+    #search-close-btn:hover { background:var(--hover); }
+    .search-hl {
+      position:absolute; border-radius:2px; pointer-events:none; z-index:22;
+      background:rgba(251,191,36,0.45);
+    }
+    .search-hl.current {
+      background:rgba(239,68,68,0.5);
+      outline:2px solid rgba(239,68,68,0.85); outline-offset:1px;
+    }
   </style>
 </head>
 <body>
@@ -437,6 +476,11 @@
     <svg id="fs-icon-expand" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
     <svg id="fs-icon-compress" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 0 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
     <span id="fs-label">Tam Ekran</span>
+  </button>
+
+  <button class="h-btn" onclick="openSearch()" title="PDF'de Ara (Ctrl+F)">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    Ara
   </button>
 
   <button class="h-btn organize" onclick="openOrganize()">
@@ -586,6 +630,7 @@
         <div class="kbd-row"><span>Geri Al</span><kbd>Ctrl+Z</kbd></div>
         <div class="kbd-row"><span>İleri Al</span><kbd>Ctrl+Y</kbd></div>
         <div class="kbd-row"><span>Kaydet PDF</span><kbd>Ctrl+S</kbd></div>
+        <div class="kbd-row"><span>Ara</span><kbd>Ctrl+F</kbd></div>
         <div class="kbd-row"><span>Sayfa ◀▶</span><kbd>← →</kbd></div>
       </div>
     </div>
@@ -702,6 +747,21 @@
   <div class="tf-sep"></div>
   <input type="color" id="tf-color" value="#000000" title="Metin rengi"
          oninput="applyTextProp('fill', this.value)">
+</div>
+
+<!-- ── SEARCH BAR ─────────────────────────────────────────── -->
+<div id="search-bar">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="flex-shrink:0;color:var(--muted)"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  <input id="search-input" type="text" placeholder="PDF'de ara… (Ctrl+F)"
+         oninput="onSearchInput(this.value)" onkeydown="onSearchKey(event)">
+  <span id="search-count"></span>
+  <button class="s-nav-btn" id="s-prev" onclick="searchNav(-1)" title="Önceki (Shift+Enter)">
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+  </button>
+  <button class="s-nav-btn" id="s-next" onclick="searchNav(+1)" title="Sonraki (Enter)">
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <button id="search-close-btn" onclick="closeSearch()" title="Kapat (Esc)">✕</button>
 </div>
 
 <!-- ── TOAST ─────────────────────────────────────────────── -->
@@ -829,6 +889,9 @@ async function loadFile(file) {
                  width:vp.width, height:vp.height, thumbnail:null });
   }
   currentPage = 1;
+  // Reset search state for new file
+  _searchQuery = ''; _searchResults = []; _searchCurrent = -1;
+  if (_searchOpen) { closeSearch(); }
   fitWidthScale();
   await renderPage(1);
   document.getElementById('drop-zone').style.display = 'none';
@@ -1597,6 +1660,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'z') { e.preventDefault(); undo(); }
     if (e.key === 'y') { e.preventDefault(); redo(); }
     if (e.key === 's') { e.preventDefault(); savePDF(); }
+    if (e.key === 'f') { e.preventDefault(); openSearch(); }
     return;
   }
   switch (e.key) {
@@ -1906,6 +1970,152 @@ function copyTranslateText() {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   SEARCH
+═══════════════════════════════════════════════════════════ */
+let _searchOpen    = false;
+let _searchQuery   = '';
+let _searchResults = []; // [{pageNum, itemIdx}]
+let _searchCurrent = -1;
+let _searchDebounce = null;
+
+function openSearch() {
+  _searchOpen = true;
+  document.getElementById('search-bar').classList.add('show');
+  const inp = document.getElementById('search-input');
+  inp.focus(); inp.select();
+}
+function closeSearch() {
+  _searchOpen = false;
+  document.getElementById('search-bar').classList.remove('show');
+  document.getElementById('search-input').value = '';
+  _searchQuery = ''; _searchResults = []; _searchCurrent = -1;
+  clearSearchHighlights();
+  updateSearchCount();
+}
+
+function onSearchKey(e) {
+  if (e.key === 'Escape')  { closeSearch(); e.preventDefault(); return; }
+  if (e.key === 'Enter')   { e.shiftKey ? searchNav(-1) : searchNav(+1); e.preventDefault(); }
+}
+function onSearchInput(val) {
+  clearTimeout(_searchDebounce);
+  _searchDebounce = setTimeout(() => _runSearch(val.trim()), 180);
+}
+
+async function _runSearch(query) {
+  _searchQuery   = query;
+  _searchResults = [];
+  _searchCurrent = -1;
+  clearSearchHighlights();
+  updateSearchCount();
+  if (!query || !pages.length) return;
+
+  const q = query.toLowerCase();
+  for (let i = 0; i < pages.length; i++) {
+    const pd = pages[i];
+    if (pd.type !== 'pdf') continue;
+    try {
+      const pg = await pd.doc.getPage(pd.pdfPageNum);
+      const tc = await pg.getTextContent();
+      const items = tc.items;
+
+      // Build full-page text with per-char item index map
+      let fullText = '';
+      const charItemIdx = [];
+      items.forEach((item, idx) => {
+        for (let c = 0; c < item.str.length; c++) charItemIdx.push(idx);
+        fullText += item.str;
+      });
+
+      const lower = fullText.toLowerCase();
+      let pos = 0;
+      while ((pos = lower.indexOf(q, pos)) !== -1) {
+        const itemIdx = charItemIdx[pos] ?? -1;
+        if (itemIdx >= 0) _searchResults.push({ pageNum: i + 1, itemIdx });
+        pos += q.length;
+      }
+    } catch(_) {}
+  }
+
+  updateSearchCount();
+  if (!_searchResults.length) return;
+
+  // Jump to first match on current page, else first match overall
+  const onPage = _searchResults.findIndex(r => r.pageNum === currentPage);
+  await goToSearchMatch(onPage >= 0 ? onPage : 0);
+}
+
+async function searchNav(dir) {
+  if (!_searchResults.length) return;
+  let next = _searchCurrent + dir;
+  if (next < 0) next = _searchResults.length - 1;
+  if (next >= _searchResults.length) next = 0;
+  await goToSearchMatch(next);
+}
+
+async function goToSearchMatch(idx) {
+  if (idx < 0 || idx >= _searchResults.length) return;
+  _searchCurrent = idx;
+  const match = _searchResults[idx];
+  if (match.pageNum !== currentPage) {
+    await renderPage(match.pageNum);
+  }
+  // Let the DOM settle before measuring span rects
+  await new Promise(r => requestAnimationFrame(r));
+  highlightSearchOnPage();
+  updateSearchCount();
+}
+
+function highlightSearchOnPage() {
+  clearSearchHighlights();
+  const tl = document.getElementById('pdf-text-layer');
+  if (!tl || !_searchQuery) return;
+
+  const spans   = Array.from(tl.querySelectorAll('span'));
+  const tlRect  = tl.getBoundingClientRect();
+  const curMatch = _searchResults[_searchCurrent];
+
+  // Group by itemIdx – mark if any entry is the current match
+  const itemMap = new Map();
+  _searchResults
+    .filter(r => r.pageNum === currentPage)
+    .forEach(r => {
+      const isCur = curMatch &&
+                    curMatch.pageNum === r.pageNum &&
+                    curMatch.itemIdx === r.itemIdx;
+      itemMap.set(r.itemIdx, { isCurrent: (itemMap.get(r.itemIdx)?.isCurrent || isCur) });
+    });
+
+  itemMap.forEach(({ isCurrent }, itemIdx) => {
+    const span = spans[itemIdx];
+    if (!span) return;
+    const rect = span.getBoundingClientRect();
+    if (rect.width < 1 && rect.height < 1) return;
+    const box = document.createElement('div');
+    box.className = 'search-hl' + (isCurrent ? ' current' : '');
+    box.style.left   = (rect.left   - tlRect.left) + 'px';
+    box.style.top    = (rect.top    - tlRect.top)  + 'px';
+    box.style.width  = rect.width   + 'px';
+    box.style.height = Math.max(rect.height, 4) + 'px';
+    tl.appendChild(box);
+    if (isCurrent) span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+
+function clearSearchHighlights() {
+  document.querySelectorAll('.search-hl').forEach(el => el.remove());
+}
+
+function updateSearchCount() {
+  const el = document.getElementById('search-count');
+  if (!el) return;
+  if (!_searchQuery) { el.textContent = ''; el.className = ''; return; }
+  if (!_searchResults.length) { el.textContent = '0 sonuç'; el.className = 'nomatch'; return; }
+  el.textContent = `${_searchCurrent + 1} / ${_searchResults.length}`;
+  el.className   = '';
+}
+
+/* ═══════════════════════════════════════════════════════════
    SNIP TOOL (area → clipboard)
 ═══════════════════════════════════════════════════════════ */
 let snipActive = false;
@@ -2047,6 +2257,11 @@ function showToast(msg, duration = 2600) {
     }
     // re-apply text layer state after render
     setTextLayerActive(translateMode || currentTool === 'select');
+    // Re-draw search highlights if search is active
+    if (_searchOpen && _searchQuery && _searchResults.length) {
+      await new Promise(r => requestAnimationFrame(r));
+      highlightSearchOnPage();
+    }
   };
 })();
 
@@ -2056,6 +2271,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (snipActive)    { deactivateSnip(); }
     if (translateMode) { toggleTranslateMode(); }
+    if (_searchOpen)   { closeSearch(); }
     hideTranslatePopup();
   }
   if (!e.ctrlKey && !e.metaKey) {
