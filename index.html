@@ -1177,7 +1177,7 @@ function setupText() {
     const col = document.getElementById('tf-color')?.value || currentColor;
     const t   = new fabric.Textbox('', {
       left: p.x, top: p.y,
-      width: Math.max(180, Math.round((canvasW || 600) * 0.35)),
+      width: Math.max(180, Math.round((fc.getWidth() || 600) * 0.35)),
       fontSize: sz, fill: col, opacity: currentOpacity,
       fontFamily: document.getElementById('tf-family')?.value || 'Arial',
       selectable: true, evented: true,
