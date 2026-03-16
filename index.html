@@ -403,6 +403,39 @@
       width:28px; height:28px; border:1px solid var(--border); border-radius:5px;
       padding:2px; cursor:pointer; background:transparent; flex-shrink:0;
     }
+    /* ── ROTATE PANEL ───────────────────────────────── */
+    #rotate-panel {
+      position:fixed; z-index:600;
+      background:#fff; border:1px solid var(--border); border-radius:10px;
+      padding:12px; display:none; flex-direction:column; gap:10px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.15); min-width:220px;
+    }
+    #rotate-panel.show { display:flex; }
+    #rotate-current { font-size:11px; color:var(--muted); text-align:center; }
+    .rot-preset-btns { display:flex; gap:6px; }
+    .rot-btn {
+      flex:1; padding:8px 4px; border:1px solid var(--border); border-radius:7px;
+      background:#fff; cursor:pointer; font-size:11px; font-weight:600;
+      display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text);
+      transition:background .12s;
+    }
+    .rot-btn:hover { background:var(--hover); }
+    .rot-btn svg { flex-shrink:0; }
+    .rot-divider { height:1px; background:var(--border); }
+    .rot-custom-row { display:flex; gap:6px; align-items:center; }
+    .rot-custom-row label { font-size:11px; color:var(--muted); white-space:nowrap; }
+    .rot-custom-row input {
+      flex:1; border:1px solid var(--border); border-radius:5px;
+      padding:5px 8px; font-size:13px; min-width:0; outline:none;
+    }
+    .rot-custom-row input:focus { border-color:var(--blue); }
+    .rot-apply-btn {
+      padding:5px 11px; border:none; border-radius:5px;
+      background:var(--blue); color:#fff; cursor:pointer; font-size:12px; font-weight:600;
+      white-space:nowrap;
+    }
+    .rot-apply-btn:hover { opacity:.88; }
+
     /* ── SEARCH BAR ─────────────────────────────────── */
     #search-bar {
       position:fixed; top:60px; right:20px; z-index:600;
@@ -476,6 +509,11 @@
     <svg id="fs-icon-expand" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
     <svg id="fs-icon-compress" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 0 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
     <span id="fs-label">Tam Ekran</span>
+  </button>
+
+  <button class="h-btn" id="rotate-btn" onclick="toggleRotatePanel()" title="Sayfayı Döndür">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg>
+    Döndür
   </button>
 
   <button class="h-btn" onclick="openSearch()" title="PDF'de Ara (Ctrl+F)">
@@ -749,6 +787,36 @@
          oninput="applyTextProp('fill', this.value)">
 </div>
 
+<!-- ── ROTATE PANEL ──────────────────────────────────────── -->
+<div id="rotate-panel">
+  <div id="rotate-current">Mevcut: 0°</div>
+  <div class="rot-preset-btns">
+    <button class="rot-btn" onclick="rotatePage(-90)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2.5 2v6h6"/><path d="M2.66 15.57a10 10 0 1 0 .57-8.38"/></svg>
+      −90°
+    </button>
+    <button class="rot-btn" onclick="rotatePage(90)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg>
+      +90°
+    </button>
+    <button class="rot-btn" onclick="rotatePage(180)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 0 20"/><path d="M2 12h10"/><path d="M9 9l3 3-3 3"/></svg>
+      180°
+    </button>
+    <button class="rot-btn" onclick="rotatePage(0, true)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+      Sıfırla
+    </button>
+  </div>
+  <div class="rot-divider"></div>
+  <div class="rot-custom-row">
+    <label>Özel açı:</label>
+    <input id="rot-custom-input" type="number" min="0" max="359" step="1" placeholder="0–359°"
+           onkeydown="if(event.key==='Enter') applyCustomRotation()">
+    <button class="rot-apply-btn" onclick="applyCustomRotation()">Uygula</button>
+  </div>
+</div>
+
 <!-- ── SEARCH BAR ─────────────────────────────────────────── -->
 <div id="search-bar">
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="flex-shrink:0;color:var(--muted)"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -886,7 +954,7 @@ async function loadFile(file) {
     const pg = await pdfDoc.getPage(i);
     const vp = pg.getViewport({ scale: 1 });
     pages.push({ type:'pdf', doc:pdfDoc, pdfPageNum:i,
-                 width:vp.width, height:vp.height, thumbnail:null });
+                 width:vp.width, height:vp.height, thumbnail:null, rotation:0 });
   }
   currentPage = 1;
   // Reset search state for new file
@@ -914,14 +982,35 @@ async function renderPage(num) {
   const dpr = window.devicePixelRatio || 1;
 
   if (pd.type === 'pdf') {
-    const pg   = await pd.doc.getPage(pd.pdfPageNum);
-    const vp   = pg.getViewport({ scale });           // logical (CSS) size
-    const vpHD = pg.getViewport({ scale: scale * dpr }); // physical (hi-res) size
+    const pg  = await pd.doc.getPage(pd.pdfPageNum);
+    const rot = pd.rotation || 0;
+    // Snap to nearest 90° for PDF.js (it only supports multiples of 90)
+    const snapRot  = ((Math.round(rot / 90) * 90) % 360 + 360) % 360;
+    const extraDeg = rot - snapRot; // remaining custom angle (0 for standard)
+    const vp   = pg.getViewport({ scale,        rotation: snapRot });
+    const vpHD = pg.getViewport({ scale: scale * dpr, rotation: snapRot });
     const off  = document.createElement('canvas');
     off.width  = vpHD.width; off.height = vpHD.height;
     await pg.render({ canvasContext: off.getContext('2d'), viewport: vpHD }).promise;
-    bgUrl  = off.toDataURL('image/jpeg', 0.97);
-    canvasW = Math.round(vp.width); canvasH = Math.round(vp.height);
+
+    if (extraDeg === 0) {
+      bgUrl   = off.toDataURL('image/jpeg', 0.97);
+      canvasW = Math.round(vp.width); canvasH = Math.round(vp.height);
+    } else {
+      // Apply the remaining custom angle on top of the snapped render
+      const rad  = extraDeg * Math.PI / 180;
+      const cosA = Math.abs(Math.cos(rad)), sinA = Math.abs(Math.sin(rad));
+      const newW = Math.round(off.width * cosA + off.height * sinA);
+      const newH = Math.round(off.width * sinA + off.height * cosA);
+      const rot2 = document.createElement('canvas');
+      rot2.width = newW; rot2.height = newH;
+      const rc = rot2.getContext('2d');
+      rc.translate(newW / 2, newH / 2);
+      rc.rotate(rad);
+      rc.drawImage(off, -off.width / 2, -off.height / 2);
+      bgUrl   = rot2.toDataURL('image/jpeg', 0.97);
+      canvasW = Math.round(newW / dpr); canvasH = Math.round(newH / dpr);
+    }
   } else { // image
     canvasW = Math.round(pd.width  * scale);
     canvasH = Math.round(pd.height * scale);
@@ -2230,6 +2319,50 @@ function cancelRenameFile() {
   inp.style.display  = 'none';
 }
 
+/* ═══════════════════════════════════════════════════════════
+   PAGE ROTATION
+═══════════════════════════════════════════════════════════ */
+function toggleRotatePanel() {
+  const panel = document.getElementById('rotate-panel');
+  if (panel.classList.contains('show')) { panel.classList.remove('show'); return; }
+  const btn = document.getElementById('rotate-btn');
+  const br  = btn.getBoundingClientRect();
+  panel.style.left = Math.max(4, br.left) + 'px';
+  panel.style.top  = (br.bottom + 6) + 'px';
+  _updateRotateCurrent();
+  panel.classList.add('show');
+}
+function _updateRotateCurrent() {
+  const el = document.getElementById('rotate-current');
+  if (!el) return;
+  const rot = (pages.length ? pages[currentPage - 1]?.rotation : 0) || 0;
+  el.textContent = 'Mevcut: ' + rot + '°';
+}
+function rotatePage(delta, reset) {
+  if (!pages.length) { showToast('Önce PDF açın'); return; }
+  const pd  = pages[currentPage - 1];
+  const cur = pd.rotation || 0;
+  pd.rotation = reset ? 0 : (((cur + delta) % 360) + 360) % 360;
+  renderPage(currentPage).then(_updateRotateCurrent);
+}
+function applyCustomRotation() {
+  if (!pages.length) { showToast('Önce PDF açın'); return; }
+  const inp = document.getElementById('rot-custom-input');
+  const val = parseFloat(inp.value);
+  if (isNaN(val)) { showToast('Geçerli bir açı girin (0–359)'); return; }
+  pages[currentPage - 1].rotation = ((val % 360) + 360) % 360;
+  inp.value = '';
+  renderPage(currentPage).then(_updateRotateCurrent);
+}
+// Close rotate panel when clicking outside
+document.addEventListener('click', e => {
+  const panel = document.getElementById('rotate-panel');
+  const btn   = document.getElementById('rotate-btn');
+  if (panel?.classList.contains('show') && !panel.contains(e.target) && !btn.contains(e.target)) {
+    panel.classList.remove('show');
+  }
+}, true);
+
 function showToast(msg, duration = 2600) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -2248,8 +2381,9 @@ function showToast(msg, duration = 2600) {
     // render text layer for PDF pages
     const pd = pages[num - 1];
     if (pd && pd.type === 'pdf') {
-      const pg = await pd.doc.getPage(pd.pdfPageNum);
-      const vp = pg.getViewport({ scale });
+      const pg       = await pd.doc.getPage(pd.pdfPageNum);
+      const snapRot  = ((Math.round((pd.rotation||0) / 90) * 90) % 360 + 360) % 360;
+      const vp = pg.getViewport({ scale, rotation: snapRot });
       await renderTextLayer(pg, vp);
     } else {
       // clear text layer for image/blank pages
