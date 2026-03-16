@@ -1160,12 +1160,10 @@ function setupText() {
   let _skipNextCreate = false; // flag: editing just exited, skip creating new box
 
   fc.on('mouse:down', opt => {
-    // Clicking on an existing IText → enter editing mode
+    // Single-click on existing text → select only (double-click to edit)
     if (opt.target && (opt.target.type === 'i-text' || opt.target.type === 'textbox')) {
-      const t = opt.target;
-      fc.setActiveObject(t);
-      t.enterEditing();
-      showTextFormatBar(t);
+      fc.setActiveObject(opt.target);
+      showTextFormatBar(opt.target);
       _skipNextCreate = false;
       return;
     }
@@ -1219,9 +1217,9 @@ function setupFabricListeners() {
   });
   fc.on('selection:cleared', () => hideTextFormatBar());
   fc.on('object:moving',     e => { if (isText(e.target)) positionTextFormatBar(e.target); });
-  // Double-click IText in select mode → enter editing
+  // Double-click text → enter editing (both select and text tool)
   fc.on('mouse:dblclick', e => {
-    if (e.target && isText(e.target) && currentTool === 'select') {
+    if (e.target && isText(e.target) && (currentTool === 'select' || currentTool === 'text')) {
       e.target.enterEditing(); showTextFormatBar(e.target);
     }
   });
