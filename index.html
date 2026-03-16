@@ -590,6 +590,7 @@
       <input id="t-rot-deg" class="t-rot-inp" type="number" value="45" min="-360" max="360"
              onkeydown="if(event.key==='Enter'){rotatePageCustom();event.preventDefault();}">
       <button class="t-rot-go" onclick="rotatePageCustom()">↺ git</button>
+      <button class="t-rot-go" onclick="rotatePage(0,true)" title="Döndürmeyi sıfırla">⊘ sıfır</button>
     </div>
   </div>
 
@@ -957,7 +958,7 @@ async function renderPage(num) {
     await pg.render({ canvasContext: off.getContext('2d'), viewport: vpHD }).promise;
 
     if (extraDeg === 0) {
-      bgUrl   = off.toDataURL('image/jpeg', 0.97);
+      bgUrl   = off.toDataURL('image/png');
       canvasW = Math.round(vp.width); canvasH = Math.round(vp.height);
     } else {
       // Apply the remaining custom angle on top of the snapped render
@@ -971,7 +972,7 @@ async function renderPage(num) {
       rc.translate(newW / 2, newH / 2);
       rc.rotate(rad);
       rc.drawImage(off, -off.width / 2, -off.height / 2);
-      bgUrl   = rot2.toDataURL('image/jpeg', 0.97);
+      bgUrl   = rot2.toDataURL('image/png');
       canvasW = Math.round(newW / dpr); canvasH = Math.round(newH / dpr);
     }
   } else { // image
@@ -982,7 +983,7 @@ async function renderPage(num) {
     const img  = new Image(); img.src = pd.imageUrl;
     await new Promise(r => { img.onload = r; if (img.complete) r(); });
     off.getContext('2d').drawImage(img, 0, 0, off.width, off.height);
-    bgUrl = off.toDataURL('image/jpeg', 0.97);
+    bgUrl = off.toDataURL('image/png');
   }
 
   if (!fc) {
