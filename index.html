@@ -8,6 +8,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
@@ -311,6 +313,10 @@
       pointer-events:none; z-index:21;
     }
     #pdf-text-layer.text-active { pointer-events:auto; z-index:20; cursor:text; }
+    /* text-selectable: layer above Fabric canvas so spans capture events;
+       container stays pointer-events:none so empty areas pass through to Fabric */
+    #pdf-text-layer.text-selectable { z-index:20; }
+    #pdf-text-layer.text-selectable span { pointer-events:auto; user-select:text; cursor:text; }
 
     /* ── SNIP OVERLAY ───────────────────────────── */
     #snip-overlay {
@@ -911,14 +917,19 @@ function onDrop(e) {
 async function loadFile(file) {
   document.getElementById('file-name').textContent = file.name;
   const data = await file.arrayBuffer();
+  // Keep a copy for pdf-lib — pdf.js may transfer (detach) the original ArrayBuffer to its worker
+  const rawBytesCopy = data.slice(0);
   pdfDoc = await pdfjsLib.getDocument({ data }).promise;
   pages = [];
   pageAnnotations = {};
+  currentTool = 'select'; // reset to default tool on every new file load
+  if (fc) { fc.clear(); } // prevent old annotations being saved into new file's pageAnnotations
   for (let i = 1; i <= pdfDoc.numPages; i++) {
     const pg = await pdfDoc.getPage(i);
     const vp = pg.getViewport({ scale: 1 });
     pages.push({ type:'pdf', doc:pdfDoc, pdfPageNum:i,
-                 width:vp.width, height:vp.height, thumbnail:null, rotation:0 });
+                 width:vp.width, height:vp.height, thumbnail:null, rotation:0,
+                 _rawBytes: rawBytesCopy });
   }
   currentPage = 1;
   // Reset search state for new file
@@ -1132,8 +1143,8 @@ function setTool(tool) {
   fc.isDrawingMode = false; fc.selection = false; fc.defaultCursor = 'crosshair';
   fc.off('mouse:down'); fc.off('mouse:move'); fc.off('mouse:up');
   fc.getObjects().forEach(o => { o.selectable = false; o.evented = false; });
-  // Text layer active only in translate mode (select mode uses Fabric canvas for object interaction)
-  setTextLayerActive(translateMode);
+  // Text layer: full in translate mode, selectable-only in select mode, off otherwise
+  setTextLayerActive(translateMode ? true : (tool === 'select' ? 'select' : false));
   switch (tool) {
     case 'select':
       fc.selection = true; fc.defaultCursor = 'default';
@@ -1408,13 +1419,13 @@ async function savePDF() {
   if (!pages.length) return;
   saveCurrentAnnotations();
   const overlay = document.getElementById('progress-overlay');
-  const bar = document.getElementById('progress-bar');
-  const txt = document.getElementById('progress-text');
+  const bar     = document.getElementById('progress-bar');
+  const txt     = document.getElementById('progress-text');
   overlay.classList.add('show');
 
-  const { jsPDF } = window.jspdf;
+  const { PDFDocument } = PDFLib;
   const origPage = currentPage;
-  let pdf = null;
+  const resultDoc = await PDFDocument.create();
 
   for (let i = 0; i < pages.length; i++) {
     const pd = pages[i];
@@ -1422,29 +1433,214 @@ async function savePDF() {
     bar.style.width = (i / pages.length * 100) + '%';
 
     await renderPage(i + 1);
-    await new Promise(r => setTimeout(r, 120));
+    await new Promise(r => setTimeout(r, 100));
 
-    const imgData = fc.toDataURL({ format:'jpeg', quality:0.92 });
-    const W = pd.width, H = pd.height;
+    // ── PDF page with original bytes and no custom rotation → overlay approach ──
+    const bytesOk = pd._rawBytes && pd._rawBytes.byteLength > 0;
+    console.log(`[savePDF] page ${i+1}: type=${pd.type} rotation=${pd.rotation} bytesOk=${bytesOk} byteLength=${pd._rawBytes?.byteLength}`);
+    if (pd.type === 'pdf' && bytesOk && !pd.rotation) {
+      try {
+        const srcDoc = await PDFDocument.load(pd._rawBytes);
+        const [copiedPage] = await resultDoc.copyPages(srcDoc, [pd.pdfPageNum - 1]);
+        resultDoc.addPage(copiedPage);
 
-    if (!pdf) {
-      pdf = new jsPDF({ orientation: W > H ? 'landscape' : 'portrait', unit:'pt', format:[W,H] });
-    } else {
-      pdf.addPage([W, H], W > H ? 'landscape' : 'portrait');
+        // If the page has an internal PDF rotation, its coordinate space doesn't match
+        // the canvas — skip overlay and fall through to full-canvas fallback
+        const pageRotate = copiedPage.getRotation().angle;
+        if (pageRotate !== 0) {
+          resultDoc.removePage(resultDoc.getPageCount() - 1);
+          // fall through to full-canvas fallback below
+        } else {
+          const { rgb } = PDFLib;
+          const allObjs     = fc.getObjects();
+          const textObjs    = allObjs.filter(o => o.type === 'i-text' || o.type === 'textbox');
+          const nonTextObjs = allObjs.filter(o => o.type !== 'i-text' && o.type !== 'textbox');
+          const { width: pgW, height: pgH } = copiedPage.getSize();
+          const scaleX = pgW / fc.width;
+          const scaleY = pgH / fc.height;
+
+          // Try to load Unicode fonts (Noto Sans Latin + Latin-ext).
+          // Covers ALL Latin characters including Turkish ğ/ş/ı.
+          // Falls back gracefully to standard fonts if offline.
+          let unicodeFonts = null;
+          if (textObjs.length > 0 && window.fontkit) {
+            try {
+              resultDoc.registerFontkit(window.fontkit);
+              unicodeFonts = await _embedUnicodeFonts(resultDoc);
+            } catch(fe) {
+              console.warn('Unicode font load failed, using standard fonts:', fe);
+            }
+          }
+
+          // ── PNG overlay: shapes, pen, highlight etc. (non-text objects) ──
+          if (nonTextObjs.length > 0) {
+            const oldBgImg   = fc.backgroundImage;
+            const oldBgColor = fc.backgroundColor;
+            textObjs.forEach(o => o.set('visible', false));
+            fc.backgroundImage = null; fc.backgroundColor = '';
+            fc.renderAll();
+            const annotDataUrl = fc.toDataURL({ format: 'png', enableRetinaScaling: false, multiplier: 1 });
+            textObjs.forEach(o => o.set('visible', true));
+            fc.backgroundImage = oldBgImg;
+            fc.backgroundColor = oldBgColor;
+            fc.renderAll();
+            copiedPage.drawImage(
+              await resultDoc.embedPng(_dataUrlToUint8(annotDataUrl)),
+              { x: 0, y: 0, width: pgW, height: pgH }
+            );
+          }
+
+          // ── Real PDF text: all text objects → selectable + copyable after save ──
+          for (const obj of textObjs) {
+            try {
+              const pdfSize  = (obj.fontSize || 16) * (obj.scaleY || 1) * scaleY;
+              const lhFactor = obj.lineHeight || 1.16;
+
+              // Parse fill color (hex → rgb 0-1)
+              let cr = 0, cg = 0, cb = 0;
+              const fill = obj.fill || '#000000';
+              if (typeof fill === 'string' && /^#[0-9a-f]{3,8}$/i.test(fill)) {
+                const h = fill.slice(1).padEnd(6,'0').slice(0,6);
+                cr = parseInt(h.slice(0,2),16)/255;
+                cg = parseInt(h.slice(2,4),16)/255;
+                cb = parseInt(h.slice(4,6),16)/255;
+              }
+              const color   = rgb(cr, cg, cb);
+              const opacity = obj.opacity ?? 1;
+
+              const lines = (obj.text || '').split('\n');
+              for (let li = 0; li < lines.length; li++) {
+                const line = lines[li];
+                if (!line) continue;
+                const baselineCanvas = obj.top +
+                  (obj.fontSize || 16) * (obj.scaleY || 1) * (li * lhFactor + 0.82);
+                const x = obj.left * scaleX;
+                const y = pgH - baselineCanvas * scaleY;
+                if (y < 0 || y > pgH || x < 0 || x > pgW) continue;
+
+                if (unicodeFonts) {
+                  // Unicode path: auto-switches font per character range (ğ/ş/ı supported)
+                  _drawTextSegmented(copiedPage, line, { x, y, size: pdfSize, fonts: unicodeFonts, color, opacity });
+                } else {
+                  // Fallback: standard Helvetica (Latin-only, no ğ/ş/ı)
+                  const { StandardFonts } = PDFLib;
+                  const isBold   = obj.fontWeight === 'bold' || Number(obj.fontWeight) >= 700;
+                  const isItalic = obj.fontStyle  === 'italic' || obj.fontStyle === 'oblique';
+                  const fontName = isBold && isItalic ? StandardFonts.HelveticaBoldOblique
+                                 : isBold             ? StandardFonts.HelveticaBold
+                                 : isItalic           ? StandardFonts.HelveticaOblique
+                                                      : StandardFonts.Helvetica;
+                  const font = await resultDoc.embedFont(fontName);
+                  copiedPage.drawText(line, { x, y, size: pdfSize, font, color, opacity });
+                }
+              }
+            } catch (te) {
+              console.warn('drawText failed for object:', te);
+            }
+          }
+
+          continue; // page done — skip fallback
+        }
+      } catch (err) {
+        console.warn('pdf-lib overlay failed, using image fallback:', err);
+        // remove the partially-added page if any
+        try { resultDoc.removePage(resultDoc.getPageCount() - 1); } catch(_) {}
+      }
     }
-    pdf.addImage(imgData, 'JPEG', 0, 0, W, H);
+
+    // ── Fallback: embed full canvas as PNG (image pages or rotated PDF pages) ──
+    const imgData  = fc.toDataURL({ format: 'png', enableRetinaScaling: false });
+    const imgBytes = _dataUrlToUint8(imgData);
+    const pdfPage  = resultDoc.addPage([pd.width, pd.height]);
+    const embImg   = await resultDoc.embedPng(imgBytes);
+    pdfPage.drawImage(embImg, { x: 0, y: 0, width: pd.width, height: pd.height });
   }
 
   bar.style.width = '100%';
   txt.textContent = 'İndiriliyor…';
-  await new Promise(r => setTimeout(r, 180));
+  await new Promise(r => setTimeout(r, 120));
   await renderPage(origPage);
   overlay.classList.remove('show');
   bar.style.width = '0%';
-  if (pdf) {
-    const fn = (document.getElementById('file-name')?.textContent || 'annotated.pdf').replace(/\.pdf$/i,'') + '.pdf';
-    pdf.save(fn);
+
+  const pdfBytes = await resultDoc.save();
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = (document.getElementById('file-name')?.textContent || 'annotated')
+               .replace(/\.pdf$/i, '') + '.pdf';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── Unicode font cache (fetched once, reused across saves) ── */
+const _fontBytesCache = {};
+async function _fetchFontBytes(url) {
+  if (_fontBytesCache[url]) return _fontBytesCache[url];
+  const buf = await fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); });
+  _fontBytesCache[url] = buf;
+  return buf;
+}
+
+// Embed Noto Sans Latin + Latin-ext into a pdf-lib document.
+// Latin-ext covers Turkish ğ/ş/ı/İ/Ğ/Ş (U+0100–024F) which standard fonts lack.
+async function _embedUnicodeFonts(pdfDoc) {
+  const base = 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5.0.21/files/';
+  const [latinBuf, extBuf] = await Promise.all([
+    _fetchFontBytes(base + 'noto-sans-latin-400-normal.woff2'),
+    _fetchFontBytes(base + 'noto-sans-latin-ext-400-normal.woff2'),
+  ]);
+  return {
+    base: await pdfDoc.embedFont(latinBuf),
+    ext:  await pdfDoc.embedFont(extBuf),
+  };
+}
+
+// Draw text with automatic font switching per character range.
+// chars ≤ U+00FF → latin font; chars > U+00FF (Turkish ğ/ş/ı etc.) → latin-ext font.
+function _drawTextSegmented(page, text, { x, y, size, fonts, color, opacity }) {
+  let curX = x;
+  const segments = [];
+  let curFont = null, curText = '';
+  for (const ch of text) {
+    const f = (ch.charCodeAt(0) > 0xFF && fonts.ext) ? fonts.ext : fonts.base;
+    if (f !== curFont && curText) { segments.push({ font: curFont, text: curText }); curText = ''; }
+    curFont = f; curText += ch;
   }
+  if (curText && curFont) segments.push({ font: curFont, text: curText });
+
+  for (const seg of segments) {
+    if (!seg.font) continue;
+    try {
+      page.drawText(seg.text, { x: curX, y, size, font: seg.font, color, opacity });
+      curX += seg.font.widthOfTextAtSize(seg.text, size);
+    } catch (_) {}
+  }
+}
+
+function _dataUrlToUint8(dataUrl) {
+  const b64 = dataUrl.split(',')[1];
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function _flipVertical(dataUrl, w, h) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const tmp = document.createElement('canvas');
+      tmp.width = w; tmp.height = h;
+      const ctx = tmp.getContext('2d');
+      ctx.translate(0, h);
+      ctx.scale(1, -1);
+      ctx.drawImage(img, 0, 0);
+      resolve(tmp.toDataURL('image/png'));
+    };
+    img.src = dataUrl;
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1543,11 +1739,12 @@ function orgAddFromPDF() {
     showOrgLoading('PDF yükleniyor…');
     try {
       const data = await f.arrayBuffer();
+      const rawBytesCopy = data.slice(0); // keep copy before pdf.js may transfer the buffer
       const doc  = await pdfjsLib.getDocument({ data }).promise;
       for (let i = 1; i <= doc.numPages; i++) {
         const pg = await doc.getPage(i);
         const vp = pg.getViewport({ scale: 1 });
-        draftPages.push({ type:'pdf', doc, pdfPageNum:i, width:vp.width, height:vp.height, thumbnail:null });
+        draftPages.push({ type:'pdf', doc, pdfPageNum:i, width:vp.width, height:vp.height, thumbnail:null, _rawBytes: rawBytesCopy });
       }
       await genDraftThumbs();
       buildOrganizeGrid();
@@ -1806,16 +2003,20 @@ let _tlSelecting      = false;
 function setTextLayerActive(on) {
   const tl = document.getElementById('pdf-text-layer');
   if (!tl) return;
-  if (on) {
+  tl.classList.remove('text-active', 'text-selectable');
+  if (on === true) {
+    // Translate mode: full text layer interaction, Fabric canvas blocked
     tl.classList.add('text-active');
     if (fc && fc.upperCanvasEl) fc.upperCanvasEl.style.pointerEvents = 'none';
-    // Remove Fabric's user-select:none so it doesn't interfere
     const cc = document.querySelector('.canvas-container');
     const lc = document.querySelector('.lower-canvas');
     if (cc) { cc.style.userSelect = ''; cc.style.webkitUserSelect = ''; }
     if (lc) { lc.style.userSelect = ''; lc.style.webkitUserSelect = ''; }
+  } else if (on === 'select') {
+    // Select mode: only spans are selectable, Fabric canvas stays active for object interaction
+    tl.classList.add('text-selectable');
+    if (fc && fc.upperCanvasEl) fc.upperCanvasEl.style.pointerEvents = '';
   } else {
-    tl.classList.remove('text-active');
     if (fc && fc.upperCanvasEl) fc.upperCanvasEl.style.pointerEvents = '';
     clearTlSelection();
   }
@@ -1830,7 +2031,7 @@ function toggleTranslateMode() {
     showToast('Çeviri modu etkin – metni sürükleyerek seçin');
   } else {
     btn.classList.remove('active-blue');
-    if (currentTool !== 'select') setTextLayerActive(false);
+    setTextLayerActive(currentTool === 'select' ? 'select' : false);
     hideTranslatePopup();
     clearTlSelection();
   }
@@ -1883,8 +2084,35 @@ function drawTlHighlights(range) {
 
   tl.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
-    if (!tl.classList.contains('text-active')) return;
-    e.preventDefault(); // prevent browser's broken native drag-select
+    const isActive     = tl.classList.contains('text-active');
+    const isSelectable = tl.classList.contains('text-selectable');
+    if (!isActive && !isSelectable) return;
+
+    // In text-selectable mode: if a Fabric annotation is under the cursor,
+    // pass the event to Fabric instead of starting text selection
+    if (isSelectable && fc) {
+      const cRect = fc.lowerCanvasEl.getBoundingClientRect();
+      const fx = (e.clientX - cRect.left) * (fc.width  / cRect.width);
+      const fy = (e.clientY - cRect.top)  * (fc.height / cRect.height);
+      const pt = new fabric.Point(fx, fy);
+      const hit = fc.getObjects().slice().reverse().find(o =>
+        o.visible !== false && o.evented !== false && o.selectable !== false &&
+        o.containsPoint(pt, null, true)
+      );
+      if (hit) {
+        // Temporarily make text layer transparent so Fabric receives this + drag events
+        tl.style.pointerEvents = 'none';
+        fc.upperCanvasEl.dispatchEvent(new MouseEvent('mousedown', {
+          bubbles: false, cancelable: true, view: window, detail: 1,
+          clientX: e.clientX, clientY: e.clientY, button: 0, buttons: 1
+        }));
+        // Restore text layer after mouse is released
+        document.addEventListener('mouseup', () => { tl.style.pointerEvents = ''; }, { once: true });
+        return;
+      }
+    }
+
+    e.preventDefault(); // prevent browser's unreliable native drag-select on transparent spans
     hideTranslatePopup();
     clearTlSelection();
     const r = getTlRange(e.clientX, e.clientY);
@@ -2084,10 +2312,12 @@ async function _runSearch(query) {
       const tc = await pg.getTextContent();
       const items = tc.items;
 
-      // Build full-page text with per-char item index map
+      // Build full-page text with per-char item index map and per-item start positions
       let fullText = '';
       const charItemIdx = [];
+      const itemStart = [];
       items.forEach((item, idx) => {
+        itemStart.push(fullText.length);
         for (let c = 0; c < item.str.length; c++) charItemIdx.push(idx);
         fullText += item.str;
       });
@@ -2096,7 +2326,11 @@ async function _runSearch(query) {
       let pos = 0;
       while ((pos = lower.indexOf(q, pos)) !== -1) {
         const itemIdx = charItemIdx[pos] ?? -1;
-        if (itemIdx >= 0) _searchResults.push({ pageNum: i + 1, itemIdx });
+        if (itemIdx >= 0) {
+          const charStart = pos - itemStart[itemIdx];
+          const charEnd   = Math.min(charStart + q.length, items[itemIdx].str.length);
+          _searchResults.push({ pageNum: i + 1, itemIdx, charStart, charEnd });
+        }
         pos += q.length;
       }
     } catch(_) {}
@@ -2136,35 +2370,48 @@ function highlightSearchOnPage() {
   const tl = document.getElementById('pdf-text-layer');
   if (!tl || !_searchQuery) return;
 
-  const spans   = Array.from(tl.querySelectorAll('span'));
-  const tlRect  = tl.getBoundingClientRect();
+  const spans    = Array.from(tl.querySelectorAll('span'));
+  const tlRect   = tl.getBoundingClientRect();
   const curMatch = _searchResults[_searchCurrent];
 
-  // Group by itemIdx – mark if any entry is the current match
-  const itemMap = new Map();
   _searchResults
     .filter(r => r.pageNum === currentPage)
     .forEach(r => {
-      const isCur = curMatch &&
-                    curMatch.pageNum === r.pageNum &&
-                    curMatch.itemIdx === r.itemIdx;
-      itemMap.set(r.itemIdx, { isCurrent: (itemMap.get(r.itemIdx)?.isCurrent || isCur) });
-    });
+      const span = spans[r.itemIdx];
+      if (!span) return;
+      const isCurrent = curMatch &&
+                        curMatch.pageNum  === r.pageNum  &&
+                        curMatch.itemIdx  === r.itemIdx  &&
+                        curMatch.charStart === r.charStart;
 
-  itemMap.forEach(({ isCurrent }, itemIdx) => {
-    const span = spans[itemIdx];
-    if (!span) return;
-    const rect = span.getBoundingClientRect();
-    if (rect.width < 1 && rect.height < 1) return;
-    const box = document.createElement('div');
-    box.className = 'search-hl' + (isCurrent ? ' current' : '');
-    box.style.left   = (rect.left   - tlRect.left) + 'px';
-    box.style.top    = (rect.top    - tlRect.top)  + 'px';
-    box.style.width  = rect.width   + 'px';
-    box.style.height = Math.max(rect.height, 4) + 'px';
-    tl.appendChild(box);
-    if (isCurrent) span.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  });
+      // Precise character-range rect via Range API
+      let rect = null;
+      const textNode = span.firstChild;
+      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+        try {
+          const len = textNode.textContent.length;
+          const range = document.createRange();
+          range.setStart(textNode, Math.min(r.charStart, len));
+          range.setEnd(textNode,   Math.min(r.charEnd,   len));
+          const rects = range.getClientRects();
+          if (rects.length) rect = rects[0];
+        } catch (_) {}
+      }
+      // Fallback: full span rect
+      if (!rect || (rect.width < 1 && rect.height < 1)) {
+        rect = span.getBoundingClientRect();
+      }
+      if (rect.width < 1 && rect.height < 1) return;
+
+      const box = document.createElement('div');
+      box.className = 'search-hl' + (isCurrent ? ' current' : '');
+      box.style.left   = (rect.left   - tlRect.left) + 'px';
+      box.style.top    = (rect.top    - tlRect.top)  + 'px';
+      box.style.width  = rect.width   + 'px';
+      box.style.height = Math.max(rect.height, 4) + 'px';
+      tl.appendChild(box);
+      if (isCurrent) span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
 }
 
 function clearSearchHighlights() {
@@ -2350,7 +2597,7 @@ function showToast(msg, duration = 2600) {
       if (tl) { tl.innerHTML = ''; }
     }
     // re-apply text layer state after render
-    setTextLayerActive(translateMode);
+    setTextLayerActive(translateMode ? true : (currentTool === 'select' ? 'select' : false));
     // Re-draw search highlights if search is active
     if (_searchOpen && _searchQuery && _searchResults.length) {
       await new Promise(r => requestAnimationFrame(r));
