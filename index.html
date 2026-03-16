@@ -1130,9 +1130,8 @@ function setTool(tool) {
   fc.isDrawingMode = false; fc.selection = false; fc.defaultCursor = 'crosshair';
   fc.off('mouse:down'); fc.off('mouse:move'); fc.off('mouse:up');
   fc.getObjects().forEach(o => { o.selectable = false; o.evented = false; });
-  // Text layer active in select mode or translate mode
-  const _textOn = (tool === 'select') || translateMode;
-  setTextLayerActive(_textOn);
+  // Text layer active only in translate mode (select mode uses Fabric canvas for object interaction)
+  setTextLayerActive(translateMode);
   switch (tool) {
     case 'select':
       fc.selection = true; fc.defaultCursor = 'default';
@@ -2349,7 +2348,7 @@ function showToast(msg, duration = 2600) {
       if (tl) { tl.innerHTML = ''; }
     }
     // re-apply text layer state after render
-    setTextLayerActive(translateMode || currentTool === 'select');
+    setTextLayerActive(translateMode);
     // Re-draw search highlights if search is active
     if (_searchOpen && _searchQuery && _searchResults.length) {
       await new Promise(r => requestAnimationFrame(r));
