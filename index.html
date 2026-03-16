@@ -944,6 +944,8 @@ async function renderPage(num) {
   let bgUrl, canvasW, canvasH;
 
   const dpr = window.devicePixelRatio || 1;
+  // Always render at ≥2× for crisp text on any display (super-sampling)
+  const renderMul = Math.max(dpr, 2);
 
   if (pd.type === 'pdf') {
     const pg  = await pd.doc.getPage(pd.pdfPageNum);
@@ -951,8 +953,8 @@ async function renderPage(num) {
     // Snap to nearest 90° for PDF.js (it only supports multiples of 90)
     const snapRot  = ((Math.round(rot / 90) * 90) % 360 + 360) % 360;
     const extraDeg = rot - snapRot; // remaining custom angle (0 for standard)
-    const vp   = pg.getViewport({ scale,        rotation: snapRot });
-    const vpHD = pg.getViewport({ scale: scale * dpr, rotation: snapRot });
+    const vp   = pg.getViewport({ scale,                  rotation: snapRot });
+    const vpHD = pg.getViewport({ scale: scale * renderMul, rotation: snapRot });
     const off  = document.createElement('canvas');
     off.width  = vpHD.width; off.height = vpHD.height;
     await pg.render({ canvasContext: off.getContext('2d'), viewport: vpHD }).promise;
@@ -979,7 +981,7 @@ async function renderPage(num) {
     canvasW = Math.round(pd.width  * scale);
     canvasH = Math.round(pd.height * scale);
     const off = document.createElement('canvas');
-    off.width  = canvasW * dpr; off.height = canvasH * dpr;
+    off.width  = canvasW * renderMul; off.height = canvasH * renderMul;
     const img  = new Image(); img.src = pd.imageUrl;
     await new Promise(r => { img.onload = r; if (img.complete) r(); });
     off.getContext('2d').drawImage(img, 0, 0, off.width, off.height);
