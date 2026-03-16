@@ -9,7 +9,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
@@ -1437,7 +1436,6 @@ async function savePDF() {
 
     // ── PDF page with original bytes and no custom rotation → overlay approach ──
     const bytesOk = pd._rawBytes && pd._rawBytes.byteLength > 0;
-    console.log(`[savePDF] page ${i+1}: type=${pd.type} rotation=${pd.rotation} bytesOk=${bytesOk} byteLength=${pd._rawBytes?.byteLength}`);
     if (pd.type === 'pdf' && bytesOk && !pd.rotation) {
       try {
         const srcDoc = await PDFDocument.load(pd._rawBytes);
@@ -1451,38 +1449,21 @@ async function savePDF() {
           resultDoc.removePage(resultDoc.getPageCount() - 1);
           // fall through to full-canvas fallback below
         } else {
-          const { rgb } = PDFLib;
-          const allObjs     = fc.getObjects();
-          const textObjs    = allObjs.filter(o => o.type === 'i-text' || o.type === 'textbox');
-          const nonTextObjs = allObjs.filter(o => o.type !== 'i-text' && o.type !== 'textbox');
+          const { rgb, TextRenderingMode } = PDFLib;
+          const allObjs  = fc.getObjects();
+          const textObjs = allObjs.filter(o => o.type === 'i-text' || o.type === 'textbox');
           const { width: pgW, height: pgH } = copiedPage.getSize();
           const scaleX = pgW / fc.width;
           const scaleY = pgH / fc.height;
 
-          // Try to load Unicode fonts (Noto Sans Latin + Latin-ext).
-          // Covers ALL Latin characters including Turkish ğ/ş/ı.
-          // Falls back gracefully to standard fonts if offline.
-          let unicodeFonts = null;
-          if (textObjs.length > 0 && window.fontkit) {
-            try {
-              resultDoc.registerFontkit(window.fontkit);
-              unicodeFonts = await _embedUnicodeFonts(resultDoc);
-            } catch(fe) {
-              console.warn('Unicode font load failed, using standard fonts:', fe);
-            }
-          }
-
-          // ── PNG overlay: shapes, pen, highlight etc. (non-text objects) ──
-          if (nonTextObjs.length > 0) {
+          // ── Step 1: PNG overlay of ALL annotations (shapes + text, visually exact) ──
+          if (allObjs.length > 0) {
             const oldBgImg   = fc.backgroundImage;
             const oldBgColor = fc.backgroundColor;
-            textObjs.forEach(o => o.set('visible', false));
             fc.backgroundImage = null; fc.backgroundColor = '';
             fc.renderAll();
             const annotDataUrl = fc.toDataURL({ format: 'png', enableRetinaScaling: false, multiplier: 1 });
-            textObjs.forEach(o => o.set('visible', true));
-            fc.backgroundImage = oldBgImg;
-            fc.backgroundColor = oldBgColor;
+            fc.backgroundImage = oldBgImg; fc.backgroundColor = oldBgColor;
             fc.renderAll();
             copiedPage.drawImage(
               await resultDoc.embedPng(_dataUrlToUint8(annotDataUrl)),
@@ -1490,53 +1471,47 @@ async function savePDF() {
             );
           }
 
-          // ── Real PDF text: all text objects → selectable + copyable after save ──
-          for (const obj of textObjs) {
+          // ── Step 2: Invisible PDF text overlay (opacity:0 = truly invisible in all viewers) ──
+          // Uses standard Helvetica — no custom font embedding, no Acrobat warnings.
+          // opacity:0 is universally respected; TextRenderingMode.Invisible is not (Acrobat bug).
+          // Turkish chars > U+00FF are approximated (ğ→g, ş→s, ı→i) since Helvetica uses
+          // WinAnsiEncoding. The visual rendering comes from the PNG overlay above.
+          if (textObjs.length > 0) {
             try {
-              const pdfSize  = (obj.fontSize || 16) * (obj.scaleY || 1) * scaleY;
-              const lhFactor = obj.lineHeight || 1.16;
+              const { StandardFonts } = PDFLib;
+              const selFont = await resultDoc.embedFont(StandardFonts.Helvetica);
+              // Map chars outside WinAnsiEncoding to ASCII approximations
+              const _toSafe = str => [...str].map(ch => {
+                const c = ch.charCodeAt(0);
+                if (c >= 0x20 && c <= 0xFF) return ch; // WinAnsi-safe
+                const TR = {'ğ':'g','Ğ':'G','ş':'s','Ş':'S','ı':'i','İ':'I'};
+                return TR[ch] || 'x';
+              }).join('');
 
-              // Parse fill color (hex → rgb 0-1)
-              let cr = 0, cg = 0, cb = 0;
-              const fill = obj.fill || '#000000';
-              if (typeof fill === 'string' && /^#[0-9a-f]{3,8}$/i.test(fill)) {
-                const h = fill.slice(1).padEnd(6,'0').slice(0,6);
-                cr = parseInt(h.slice(0,2),16)/255;
-                cg = parseInt(h.slice(2,4),16)/255;
-                cb = parseInt(h.slice(4,6),16)/255;
+              for (const obj of textObjs) {
+                try {
+                  const pdfSize  = (obj.fontSize || 16) * (obj.scaleY || 1) * scaleY;
+                  const lhFactor = obj.lineHeight || 1.16;
+                  const lines    = (obj.text || '').split('\n');
+                  for (let li = 0; li < lines.length; li++) {
+                    const rawLine = lines[li];
+                    if (!rawLine) continue;
+                    const safeLine = _toSafe(rawLine);
+                    if (!safeLine.trim()) continue;
+                    const baselineCanvas = obj.top +
+                      (obj.fontSize || 16) * (obj.scaleY || 1) * (li * lhFactor + 0.82);
+                    const x = obj.left * scaleX;
+                    const y = pgH - baselineCanvas * scaleY;
+                    if (y < -pgH || y > pgH * 2 || x < -pgW || x > pgW * 2) continue;
+                    copiedPage.drawText(safeLine, {
+                      x, y, size: pdfSize, font: selFont,
+                      color: rgb(0, 0, 0),
+                      opacity: 0,  // completely transparent — invisible in all PDF viewers
+                    });
+                  }
+                } catch (_) {}
               }
-              const color   = rgb(cr, cg, cb);
-              const opacity = obj.opacity ?? 1;
-
-              const lines = (obj.text || '').split('\n');
-              for (let li = 0; li < lines.length; li++) {
-                const line = lines[li];
-                if (!line) continue;
-                const baselineCanvas = obj.top +
-                  (obj.fontSize || 16) * (obj.scaleY || 1) * (li * lhFactor + 0.82);
-                const x = obj.left * scaleX;
-                const y = pgH - baselineCanvas * scaleY;
-                if (y < 0 || y > pgH || x < 0 || x > pgW) continue;
-
-                if (unicodeFonts) {
-                  // Unicode path: auto-switches font per character range (ğ/ş/ı supported)
-                  _drawTextSegmented(copiedPage, line, { x, y, size: pdfSize, fonts: unicodeFonts, color, opacity });
-                } else {
-                  // Fallback: standard Helvetica (Latin-only, no ğ/ş/ı)
-                  const { StandardFonts } = PDFLib;
-                  const isBold   = obj.fontWeight === 'bold' || Number(obj.fontWeight) >= 700;
-                  const isItalic = obj.fontStyle  === 'italic' || obj.fontStyle === 'oblique';
-                  const fontName = isBold && isItalic ? StandardFonts.HelveticaBoldOblique
-                                 : isBold             ? StandardFonts.HelveticaBold
-                                 : isItalic           ? StandardFonts.HelveticaOblique
-                                                      : StandardFonts.Helvetica;
-                  const font = await resultDoc.embedFont(fontName);
-                  copiedPage.drawText(line, { x, y, size: pdfSize, font, color, opacity });
-                }
-              }
-            } catch (te) {
-              console.warn('drawText failed for object:', te);
-            }
+            } catch (_) {}
           }
 
           continue; // page done — skip fallback
@@ -1574,50 +1549,6 @@ async function savePDF() {
   URL.revokeObjectURL(url);
 }
 
-/* ── Unicode font cache (fetched once, reused across saves) ── */
-const _fontBytesCache = {};
-async function _fetchFontBytes(url) {
-  if (_fontBytesCache[url]) return _fontBytesCache[url];
-  const buf = await fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); });
-  _fontBytesCache[url] = buf;
-  return buf;
-}
-
-// Embed Noto Sans Latin + Latin-ext into a pdf-lib document.
-// Latin-ext covers Turkish ğ/ş/ı/İ/Ğ/Ş (U+0100–024F) which standard fonts lack.
-async function _embedUnicodeFonts(pdfDoc) {
-  const base = 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5.0.21/files/';
-  const [latinBuf, extBuf] = await Promise.all([
-    _fetchFontBytes(base + 'noto-sans-latin-400-normal.woff2'),
-    _fetchFontBytes(base + 'noto-sans-latin-ext-400-normal.woff2'),
-  ]);
-  return {
-    base: await pdfDoc.embedFont(latinBuf),
-    ext:  await pdfDoc.embedFont(extBuf),
-  };
-}
-
-// Draw text with automatic font switching per character range.
-// chars ≤ U+00FF → latin font; chars > U+00FF (Turkish ğ/ş/ı etc.) → latin-ext font.
-function _drawTextSegmented(page, text, { x, y, size, fonts, color, opacity }) {
-  let curX = x;
-  const segments = [];
-  let curFont = null, curText = '';
-  for (const ch of text) {
-    const f = (ch.charCodeAt(0) > 0xFF && fonts.ext) ? fonts.ext : fonts.base;
-    if (f !== curFont && curText) { segments.push({ font: curFont, text: curText }); curText = ''; }
-    curFont = f; curText += ch;
-  }
-  if (curText && curFont) segments.push({ font: curFont, text: curText });
-
-  for (const seg of segments) {
-    if (!seg.font) continue;
-    try {
-      page.drawText(seg.text, { x: curX, y, size, font: seg.font, color, opacity });
-      curX += seg.font.widthOfTextAtSize(seg.text, size);
-    } catch (_) {}
-  }
-}
 
 function _dataUrlToUint8(dataUrl) {
   const b64 = dataUrl.split(',')[1];
