@@ -1200,11 +1200,20 @@ function setupShape(type) {
   });
   fc.on('mouse:up', opt => {
     if (!isShapeDrawing) return; isShapeDrawing = false;
+    let drawnObjs = [];
     if (type === 'arrow' && tempShape) {
       const p = fc.getPointer(opt.e), angle = Math.atan2(p.y-shapeOrigin.y, p.x-shapeOrigin.x), as = Math.max(currentWidth*4,12);
-      fc.add(new fabric.Triangle({left:p.x,top:p.y,width:as,height:as,fill:currentColor,angle:(angle*180/Math.PI)+90,originX:'center',originY:'center',selectable:false,evented:false,opacity:currentOpacity}));
+      const head = new fabric.Triangle({left:p.x,top:p.y,width:as,height:as,fill:currentColor,angle:(angle*180/Math.PI)+90,originX:'center',originY:'center',selectable:false,evented:false,opacity:currentOpacity});
+      fc.add(head);
+      drawnObjs = [tempShape, head];
+    } else if (tempShape) {
+      drawnObjs = [tempShape];
     }
+    // Make drawn shapes selectable, then switch to select mode
+    drawnObjs.forEach(o => o.set({ selectable: true, evented: true }));
     tempShape = null; pushUndo(); fc.renderAll();
+    setTool('select');
+    if (drawnObjs.length === 1) fc.setActiveObject(drawnObjs[0]);
   });
 }
 
