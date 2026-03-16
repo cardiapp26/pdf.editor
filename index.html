@@ -1179,7 +1179,8 @@ function setupText() {
       fontSize: sz, fill: col, opacity: currentOpacity,
       fontFamily: document.getElementById('tf-family')?.value || 'Arial',
       selectable: true, evented: true,
-      splitByGrapheme: false
+      splitByGrapheme: false,
+      lockScalingX: true, lockScalingY: true, lockScalingFlip: true
     });
     fc.add(t);
     fc.setActiveObject(t);
