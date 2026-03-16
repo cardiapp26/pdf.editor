@@ -1211,9 +1211,10 @@ function setupShape(type) {
     }
     // Make drawn shapes selectable, then switch to select mode
     drawnObjs.forEach(o => o.set({ selectable: true, evented: true }));
-    tempShape = null; pushUndo(); fc.renderAll();
+    tempShape = null; pushUndo();
     setTool('select');
     if (drawnObjs.length === 1) fc.setActiveObject(drawnObjs[0]);
+    fc.renderAll();
   });
 }
 
