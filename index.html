@@ -3,7 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PDF Annotator – Akıllı Tahta</title>
+  <title>PDF Annotator</title>
+  <meta name="description" content="PDF editor, annotator and watermark remover">
+  <meta name="theme-color" content="#e94560">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PDF Annotator">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
@@ -464,6 +471,64 @@
       outline:2px solid rgba(239,68,68,0.85); outline-offset:1px;
     }
 
+    /* ── LANG TOGGLE ────────────────────────────── */
+    .lang-toggle {
+      font-weight:700; font-size:12px; min-width:36px;
+      letter-spacing:.5px; color:var(--blue) !important;
+      border-color:var(--blue) !important;
+    }
+    .lang-toggle:hover { background:#eff6ff !important; }
+
+    /* ── ABOUT OVERLAY ──────────────────────────── */
+    #about-overlay {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,0.48);
+      z-index:300; align-items:center; justify-content:center;
+    }
+    #about-overlay.show { display:flex; }
+    #about-modal {
+      background:#fff; border-radius:16px; width:480px; max-width:95vw;
+      box-shadow:0 24px 64px rgba(0,0,0,0.22); overflow:hidden;
+    }
+    #about-head {
+      background:var(--accent); padding:24px 28px 20px;
+      display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+    }
+    #about-head-inner { color:#fff; }
+    #about-head-inner h2 { font-size:18px; font-weight:800; margin-bottom:4px; }
+    #about-head-inner p  { font-size:12px; opacity:.85; }
+    #about-close {
+      width:28px; height:28px; border-radius:50%; border:none;
+      background:rgba(255,255,255,0.2); color:#fff; cursor:pointer;
+      font-size:16px; display:flex; align-items:center; justify-content:center;
+      flex-shrink:0; margin-top:2px;
+    }
+    #about-close:hover { background:rgba(255,255,255,0.35); }
+    #about-body { padding:24px 28px; }
+    .about-section { margin-bottom:20px; }
+    .about-section:last-child { margin-bottom:0; }
+    .about-section-title {
+      font-size:10px; text-transform:uppercase; letter-spacing:.9px;
+      color:var(--muted); font-weight:700; margin-bottom:10px;
+    }
+    .about-copy {
+      font-size:13px; color:var(--text); font-weight:600; margin-bottom:4px;
+    }
+    .about-copy span { color:var(--accent); }
+    .about-links { display:flex; flex-direction:column; gap:7px; }
+    .about-link {
+      display:flex; align-items:center; gap:9px; padding:9px 12px;
+      border:1px solid var(--border); border-radius:9px; text-decoration:none;
+      color:var(--text); font-size:12px; font-weight:500; transition:all .12s;
+      background:#fafafa;
+    }
+    .about-link:hover {
+      border-color:var(--blue); background:#eff6ff; color:var(--blue);
+    }
+    .about-link svg { flex-shrink:0; opacity:.6; }
+    .about-link:hover svg { opacity:1; }
+    .about-link-title { font-weight:600; font-size:12px; }
+    .about-link-url   { font-size:10px; color:var(--muted); margin-top:1px; }
+
     /* ── REMOVE TEXT OVERLAY ────────────────────── */
     #remove-text-overlay {
       display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45);
@@ -551,9 +616,10 @@
 
   <button class="h-btn" onclick="document.getElementById('file-input').click()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-    PDF Aç
+    <span data-i18n="open">PDF Aç</span>
   </button>
-  <input type="file" id="file-input" accept=".pdf" style="display:none">
+  <input type="file" id="file-input" accept=".pdf,image/*,.docx" style="display:none">
+  <input type="file" id="stamp-input" accept="image/*" style="display:none">
   <span id="file-name" title="Adı değiştirmek için tıklayın" onclick="startRenameFile()">— dosya seçilmedi —</span>
   <input id="file-name-input" type="text" onblur="endRenameFile()" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){cancelRenameFile();}">
 
@@ -561,41 +627,50 @@
 
   <button class="h-btn" onclick="undo()" title="Ctrl+Z">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
-    Geri Al
+    <span data-i18n="undo">Geri Al</span>
   </button>
   <button class="h-btn" onclick="redo()" title="Ctrl+Y">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
-    İleri Al
+    <span data-i18n="redo">İleri Al</span>
   </button>
 
   <button class="h-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Tam Ekran (F)">
     <svg id="fs-icon-expand" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
     <svg id="fs-icon-compress" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 0 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
-    <span id="fs-label">Tam Ekran</span>
+    <span id="fs-label" data-i18n="fullscreen">Tam Ekran</span>
   </button>
 
-  <button class="h-btn" onclick="openSearch()" title="PDF'de Ara (Ctrl+F)">
+  <button class="h-btn" onclick="openSearch()" title="Ctrl+F">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    Ara
+    <span data-i18n="search">Ara</span>
   </button>
 
-  <button class="h-btn" onclick="openRemoveTextModal()" title="Metin veya filigran sil">
+  <button class="h-btn" onclick="openRemoveTextModal()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-    Metin Sil
+    <span data-i18n="remove-text">Metin Sil</span>
   </button>
 
   <button class="h-btn organize" onclick="openOrganize()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-    Sayfaları Düzenle
+    <span data-i18n="organize">Sayfaları Düzenle</span>
   </button>
 
   <button class="h-btn primary" onclick="savePDF()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-    PDF'yi Kaydet
+    <span data-i18n="save">PDF'yi Kaydet</span>
   </button>
   <button class="h-btn danger" onclick="confirmReset()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-    Temizle
+    <span data-i18n="clear">Temizle</span>
+  </button>
+
+  <button class="h-btn lang-toggle" id="lang-toggle-btn" onclick="toggleLang()" title="Switch language / Dil değiştir">
+    <span id="lang-label">TR</span>
+  </button>
+
+  <button class="h-btn" onclick="openAbout()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span data-i18n="about">Hakkında</span>
   </button>
 </div>
 
@@ -604,42 +679,45 @@
 
   <!-- Left Toolbar -->
   <div id="toolbar">
-    <button class="t-btn active" id="t-select" data-tool="select" data-tip="Seç (V)" onclick="setTool('select')">
+    <button class="t-btn active" id="t-select" data-tool="select" data-tip="Seç (V)" data-tip-en="Select (V)" onclick="setTool('select')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-7 1-4 7z"/></svg>
     </button>
-    <button class="t-btn" id="t-pen" data-tool="pen" data-tip="Kalem (P)" onclick="setTool('pen')">
+    <button class="t-btn" id="t-pen" data-tool="pen" data-tip="Kalem (P)" data-tip-en="Pen (P)" onclick="setTool('pen')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
     </button>
-    <button class="t-btn" id="t-highlight" data-tool="highlight" data-tip="Vurgulayıcı (H)" onclick="setTool('highlight')">
+    <button class="t-btn" id="t-highlight" data-tool="highlight" data-tip="Vurgulayıcı (H)" data-tip-en="Highlighter (H)" onclick="setTool('highlight')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h3l6-6"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
     </button>
-    <button class="t-btn" id="t-eraser" data-tool="eraser" data-tip="Silgi (E)" onclick="setTool('eraser')">
+    <button class="t-btn" id="t-eraser" data-tool="eraser" data-tip="Silgi (E)" data-tip-en="Eraser (E)" onclick="setTool('eraser')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
     </button>
     <div class="t-sep"></div>
-    <button class="t-btn" id="t-line" data-tool="line" data-tip="Çizgi (L)" onclick="setTool('line')">
+    <button class="t-btn" id="t-line" data-tool="line" data-tip="Çizgi (L)" data-tip-en="Line (L)" onclick="setTool('line')">
       <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="19" x2="19" y2="5"/></svg>
     </button>
-    <button class="t-btn" id="t-arrow" data-tool="arrow" data-tip="Ok (A)" onclick="setTool('arrow')">
+    <button class="t-btn" id="t-arrow" data-tool="arrow" data-tip="Ok (A)" data-tip-en="Arrow (A)" onclick="setTool('arrow')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
     </button>
-    <button class="t-btn" id="t-rect" data-tool="rect" data-tip="Dikdörtgen (R)" onclick="setTool('rect')">
+    <button class="t-btn" id="t-rect" data-tool="rect" data-tip="Dikdörtgen (R)" data-tip-en="Rectangle (R)" onclick="setTool('rect')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
     </button>
-    <button class="t-btn" id="t-circle" data-tool="circle" data-tip="Daire (C)" onclick="setTool('circle')">
+    <button class="t-btn" id="t-circle" data-tool="circle" data-tip="Daire (C)" data-tip-en="Circle (C)" onclick="setTool('circle')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg>
     </button>
-    <button class="t-btn" id="t-text" data-tool="text" data-tip="Metin (T)" onclick="setTool('text')">
+    <button class="t-btn" id="t-text" data-tool="text" data-tip="Metin (T)" data-tip-en="Text (T)" onclick="setTool('text')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
     </button>
     <div class="t-sep"></div>
-    <button class="t-btn" id="t-sig" data-tip="İmza Ekle (S)" onclick="openSigModal()">
+    <button class="t-btn" id="t-stamp" data-tip="Resim Damgası (I)" data-tip-en="Image Stamp (I)" onclick="openStampPicker()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+    </button>
+    <button class="t-btn" id="t-sig" data-tip="İmza Ekle (S)" data-tip-en="Signature (S)" onclick="openSigModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 17c2-4 4-4 5.5 0s3.5 4 5 0 3-4 4.5 0"/>
         <line x1="3" y1="21" x2="21" y2="21"/>
       </svg>
     </button>
-    <button class="t-btn" id="t-snip" data-tip="Alan Kopyala (X)" onclick="activateSnip()">
+    <button class="t-btn" id="t-snip" data-tip="Alan Kopyala (X)" data-tip-en="Copy Area (X)" onclick="activateSnip()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
         <line x1="20" y1="4" x2="8.12" y2="15.88"/>
@@ -647,7 +725,7 @@
         <line x1="8.12" y1="8.12" x2="12" y2="12"/>
       </svg>
     </button>
-    <button class="t-btn" id="t-translate" data-tip="Metin Çevir (Q)" onclick="toggleTranslateMode()">
+    <button class="t-btn" id="t-translate" data-tip="Metin Çevir (Q)" data-tip-en="Translate Text (Q)" onclick="toggleTranslateMode()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/>
         <path d="M7 2h1"/><path d="m22 22-5-10-5 10"/>
@@ -655,27 +733,27 @@
       </svg>
     </button>
     <div class="t-sep"></div>
-    <button class="t-btn" data-tip="Yakınlaştır (+)" onclick="zoom(+0.25)">
+    <button class="t-btn" data-tip="Yakınlaştır (+)" data-tip-en="Zoom In (+)" onclick="zoom(+0.25)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
     </button>
-    <button class="t-btn" data-tip="Uzaklaştır (−)" onclick="zoom(-0.25)">
+    <button class="t-btn" data-tip="Uzaklaştır (−)" data-tip-en="Zoom Out (−)" onclick="zoom(-0.25)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
     </button>
     <div class="t-sep"></div>
-    <button class="t-btn" data-tip="Sola Döndür (−90°)" onclick="rotatePage(-90)">
+    <button class="t-btn" data-tip="Sola Döndür (−90°)" data-tip-en="Rotate Left (−90°)" onclick="rotatePage(-90)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6h6"/><path d="M2.66 15.57a10 10 0 1 0 .57-8.38"/></svg>
     </button>
-    <button class="t-btn" data-tip="Sağa Döndür (+90°)" onclick="rotatePage(90)">
+    <button class="t-btn" data-tip="Sağa Döndür (+90°)" data-tip-en="Rotate Right (+90°)" onclick="rotatePage(90)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg>
     </button>
-    <button class="t-btn" data-tip="180° Döndür" onclick="rotatePage(180)">
+    <button class="t-btn" data-tip="180° Döndür" data-tip-en="Rotate 180°" onclick="rotatePage(180)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.52"/></svg>
     </button>
-    <div class="t-rot-wrap" title="Özel açıyla döndür">
+    <div class="t-rot-wrap">
       <input id="t-rot-deg" class="t-rot-inp" type="number" value="45" min="-360" max="360"
              onkeydown="if(event.key==='Enter'){rotatePageCustom();event.preventDefault();}">
-      <button class="t-rot-go" onclick="rotatePageCustom()">↺ git</button>
-      <button class="t-rot-go" onclick="rotatePage(0,true)" title="Döndürmeyi sıfırla">⊘ sıfır</button>
+      <button class="t-rot-go" onclick="rotatePageCustom()" data-i18n="rot-go">↺ git</button>
+      <button class="t-rot-go" onclick="rotatePage(0,true)" data-i18n="rot-reset">⊘ sıfır</button>
     </div>
   </div>
 
@@ -683,8 +761,8 @@
   <div id="canvas-area" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
     <div id="drop-zone" onclick="document.getElementById('file-input').click()">
       <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-      <p>PDF dosyasını buraya sürükleyin</p>
-      <small>veya tıklayarak seçin</small>
+      <p data-i18n="drop-main">PDF dosyasını buraya sürükleyin</p>
+      <small data-i18n="drop-sub">veya tıklayarak seçin</small>
     </div>
     <div id="canvas-wrapper">
       <canvas id="main-canvas"></canvas>
@@ -701,54 +779,55 @@
       </svg>
     </button>
     <div class="panel-section">
-      <div class="panel-label">Renk</div>
+      <div class="panel-label" data-i18n="panel-color">Renk</div>
       <div class="color-grid" id="color-grid"></div>
       <input type="color" id="custom-color" value="#e94560" oninput="setCustomColor(this.value)">
     </div>
     <div class="panel-section">
-      <div class="panel-label">Kalınlık</div>
+      <div class="panel-label" data-i18n="panel-width">Kalınlık</div>
       <div class="slider-row"><input type="range" id="sw-slider" min="1" max="24" value="3" oninput="setStrokeWidth(+this.value)"><span class="slider-val" id="sw-val">3px</span></div>
     </div>
     <div class="panel-section">
-      <div class="panel-label">Opaklık</div>
+      <div class="panel-label" data-i18n="panel-opacity">Opaklık</div>
       <div class="slider-row"><input type="range" id="op-slider" min="10" max="100" value="100" oninput="setOpacity(+this.value)"><span class="slider-val" id="op-val">100%</span></div>
     </div>
     <div class="panel-section">
-      <div class="panel-label">Şekil</div>
-      <div class="toggle-row"><span>Dolu şekil</span><input type="checkbox" id="fill-toggle"></div>
+      <div class="panel-label" data-i18n="panel-shape">Şekil</div>
+      <div class="toggle-row"><span data-i18n="panel-fill">Dolu şekil</span><input type="checkbox" id="fill-toggle"></div>
     </div>
     <div class="panel-section">
-      <div class="panel-label">Dışa Aktar</div>
-      <button class="act-btn save-pg"  onclick="savePagePNG()">PNG – Bu Sayfa</button>
-      <button class="act-btn save-all" onclick="savePDF()">PDF – Tüm Sayfalar</button>
+      <div class="panel-label" data-i18n="panel-export">Dışa Aktar</div>
+      <button class="act-btn save-pg"  onclick="savePagePNG()" data-i18n="panel-png">PNG – Bu Sayfa</button>
+      <button class="act-btn save-all" onclick="savePDF()" data-i18n="panel-pdf">PDF – Tüm Sayfalar</button>
     </div>
     <div class="panel-section">
-      <div class="panel-label">Sıfırla</div>
-      <button class="act-btn reset-pg"  onclick="confirmReset()">Bu Sayfayı Temizle</button>
-      <button class="act-btn reset-all" onclick="confirmResetAll()">Tümünü Temizle</button>
+      <div class="panel-label" data-i18n="panel-reset">Sıfırla</div>
+      <button class="act-btn reset-pg"  onclick="confirmReset()" data-i18n="panel-reset-page">Bu Sayfayı Temizle</button>
+      <button class="act-btn reset-all" onclick="confirmResetAll()" data-i18n="panel-reset-all">Tümünü Temizle</button>
     </div>
     <div class="panel-section" style="flex:1">
-      <div class="panel-label">Kısayollar</div>
+      <div class="panel-label" data-i18n="panel-kbd">Kısayollar</div>
       <div class="kbds">
-        <div class="kbd-row"><span>Seç</span><kbd>V</kbd></div>
-        <div class="kbd-row"><span>Kalem</span><kbd>P</kbd></div>
-        <div class="kbd-row"><span>Vurgula</span><kbd>H</kbd></div>
-        <div class="kbd-row"><span>Silgi</span><kbd>E</kbd></div>
-        <div class="kbd-row"><span>Çizgi</span><kbd>L</kbd></div>
-        <div class="kbd-row"><span>Ok</span><kbd>A</kbd></div>
-        <div class="kbd-row"><span>Dikdörtgen</span><kbd>R</kbd></div>
-        <div class="kbd-row"><span>Daire</span><kbd>C</kbd></div>
-        <div class="kbd-row"><span>Metin</span><kbd>T</kbd></div>
-        <div class="kbd-row"><span>İmza</span><kbd>S</kbd></div>
-        <div class="kbd-row"><span>Alan Kopyala</span><kbd>X</kbd></div>
-        <div class="kbd-row"><span>Çeviri Modu</span><kbd>Q</kbd></div>
-        <div class="kbd-row"><span>Tam Ekran</span><kbd>F</kbd></div>
-        <div class="kbd-row"><span>İptal</span><kbd>Esc</kbd></div>
-        <div class="kbd-row"><span>Geri Al</span><kbd>Ctrl+Z</kbd></div>
-        <div class="kbd-row"><span>İleri Al</span><kbd>Ctrl+Y</kbd></div>
-        <div class="kbd-row"><span>Kaydet PDF</span><kbd>Ctrl+S</kbd></div>
-        <div class="kbd-row"><span>Ara</span><kbd>Ctrl+F</kbd></div>
-        <div class="kbd-row"><span>Sayfa ◀▶</span><kbd>← →</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-select">Seç</span><kbd>V</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-pen">Kalem</span><kbd>P</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-highlight">Vurgula</span><kbd>H</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-eraser">Silgi</span><kbd>E</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-line">Çizgi</span><kbd>L</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-arrow">Ok</span><kbd>A</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-rect">Dikdörtgen</span><kbd>R</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-circle">Daire</span><kbd>C</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-text">Metin</span><kbd>T</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-stamp">Resim Damgası</span><kbd>I</kbd></div>
+<div class="kbd-row"><span data-i18n="kbd-sig">İmza</span><kbd>S</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-snip">Alan Kopyala</span><kbd>X</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-translate">Çeviri Modu</span><kbd>Q</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-fullscreen">Tam Ekran</span><kbd>F</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-cancel">İptal</span><kbd>Esc</kbd></div>
+        <div class="kbd-row"><span data-i18n="undo">Geri Al</span><kbd>Ctrl+Z</kbd></div>
+        <div class="kbd-row"><span data-i18n="redo">İleri Al</span><kbd>Ctrl+Y</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-save">Kaydet PDF</span><kbd>Ctrl+S</kbd></div>
+        <div class="kbd-row"><span data-i18n="search">Ara</span><kbd>Ctrl+F</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-page">Sayfa ◀▶</span><kbd>← →</kbd></div>
       </div>
     </div>
   </div>
@@ -758,9 +837,9 @@
 <div id="bottom-area">
   <div id="thumb-tray"></div>
   <div id="bottom-nav">
-    <button class="nav-btn" id="prev-btn" onclick="prevPage()" disabled>◀ Önceki</button>
+    <button class="nav-btn" id="prev-btn" onclick="prevPage()" disabled><span data-i18n="prev">◀ Önceki</span></button>
     <span id="page-info">— / —</span>
-    <button class="nav-btn" id="next-btn" onclick="nextPage()" disabled>Sonraki ▶</button>
+    <button class="nav-btn" id="next-btn" onclick="nextPage()" disabled><span data-i18n="next">Sonraki ▶</span></button>
     <span id="zoom-info" style="margin-left:8px">125%</span>
   </div>
 </div>
@@ -810,6 +889,64 @@
       <input type="file" id="sig-file-input" accept="image/png,image/jpeg,image/jpg" style="display:none">
       <div id="saved-sigs-header">Kayıtlı İmzalar</div>
       <div id="saved-sigs-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ABOUT OVERLAY ─────────────────────────────────────── -->
+<div id="about-overlay">
+  <div id="about-modal">
+    <div id="about-head">
+      <div id="about-head-inner">
+        <h2>PDF Annotator</h2>
+        <p data-i18n="about-tagline">PDF düzenleyici, açıklama aracı ve filigran temizleyici</p>
+      </div>
+      <button id="about-close" onclick="closeAbout()">✕</button>
+    </div>
+    <div id="about-body">
+      <div class="about-section">
+        <div class="about-copy">© 2025 <span>Dr. Yusuf Hoşoğlu</span> — <span data-i18n="about-rights">All rights reserved.</span></div>
+      </div>
+      <div class="about-section">
+        <div class="about-section-title" data-i18n="about-apps">Diğer Uygulamalar / Other Apps</div>
+        <div class="about-links">
+          <a class="about-link" href="https://ustat.drtr.uk/" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <div>
+              <div class="about-link-title" data-i18n="app-biostat">Biyoistatistik Uygulaması</div>
+              <div class="about-link-url">ustat.drtr.uk</div>
+            </div>
+          </a>
+          <a class="about-link" href="https://flow.drtr.uk/" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="16" y="3" width="5" height="5" rx="1"/><rect x="9.5" y="16" width="5" height="5" rx="1"/><path d="M5.5 8v3a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8"/><line x1="12" y1="13" x2="12" y2="16"/></svg>
+            <div>
+              <div class="about-link-title" data-i18n="app-flow">Akademik Akış Tasarımcısı</div>
+              <div class="about-link-url">flow.drtr.uk</div>
+            </div>
+          </a>
+          <a class="about-link" href="https://neodw.drtr.uk/" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M2 17l4-4 3 3 4-4 5 5"/></svg>
+            <div>
+              <div class="about-link-title" data-i18n="app-dicom">DICOM Görüntüleyici</div>
+              <div class="about-link-url">neodw.drtr.uk</div>
+            </div>
+          </a>
+          <a class="about-link" href="https://not.drtr.uk/" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <div>
+              <div class="about-link-title" data-i18n="app-notes">Not Uygulaması</div>
+              <div class="about-link-url">not.drtr.uk</div>
+            </div>
+          </a>
+          <a class="about-link" href="https://drtr.uk/" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <div>
+              <div class="about-link-title" data-i18n="app-portal">drtr.uk — Tüm Araçlar</div>
+              <div class="about-link-url">drtr.uk</div>
+            </div>
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -922,6 +1059,108 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 /* ═══════════════════════════════════════════════════════════
+   SERVICE WORKER (PWA)
+═══════════════════════════════════════════════════════════ */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   I18N — TR / EN
+═══════════════════════════════════════════════════════════ */
+const I18N = {
+  tr: {
+    'open':'PDF Aç','undo':'Geri Al','redo':'İleri Al','fullscreen':'Tam Ekran',
+    'search':'Ara','remove-text':'Metin Sil','organize':'Sayfaları Düzenle',
+    'save':"PDF'yi Kaydet",'clear':'Temizle','about':'Hakkında',
+    'panel-color':'Renk','panel-width':'Kalınlık','panel-opacity':'Opaklık',
+    'panel-shape':'Şekil','panel-fill':'Dolu şekil','panel-export':'Dışa Aktar',
+    'panel-png':'PNG – Bu Sayfa','panel-pdf':'PDF – Tüm Sayfalar',
+    'panel-reset':'Sıfırla','panel-reset-page':'Bu Sayfayı Temizle',
+    'panel-reset-all':'Tümünü Temizle','panel-kbd':'Kısayollar',
+    'prev':'◀ Önceki','next':'Sonraki ▶',
+    'drop-main':'PDF, Resim veya Word dosyasını sürükleyin','drop-sub':'veya tıklayarak seçin (.pdf, .docx, resim)',
+    'rot-go':'↺ git','rot-reset':'⊘ sıfır',
+    'kbd-select':'Seç','kbd-pen':'Kalem','kbd-highlight':'Vurgula',
+    'kbd-eraser':'Silgi','kbd-line':'Çizgi','kbd-arrow':'Ok',
+    'kbd-rect':'Dikdörtgen','kbd-circle':'Daire','kbd-text':'Metin',
+    'kbd-stamp':'Resim Damgası','kbd-sig':'İmza','kbd-snip':'Alan Kopyala','kbd-translate':'Çeviri Modu',
+    'kbd-fullscreen':'Tam Ekran','kbd-cancel':'İptal','kbd-save':'Kaydet PDF',
+    'kbd-page':'Sayfa ◀▶',
+    'about-tagline':'PDF düzenleyici, açıklama aracı ve filigran temizleyici',
+    'about-rights':'Tüm hakları saklıdır.','about-apps':'Diğer Uygulamalar',
+    'app-biostat':'Biyoistatistik Uygulaması','app-flow':'Akademik Akış Tasarımcısı',
+    'app-dicom':'DICOM Görüntüleyici','app-notes':'Not Uygulaması',
+    'app-portal':'drtr.uk — Tüm Araçlar',
+  },
+  en: {
+    'open':'Open PDF','undo':'Undo','redo':'Redo','fullscreen':'Fullscreen',
+    'search':'Search','remove-text':'Remove Text','organize':'Organize Pages',
+    'save':'Save PDF','clear':'Clear','about':'About',
+    'panel-color':'Color','panel-width':'Thickness','panel-opacity':'Opacity',
+    'panel-shape':'Shape','panel-fill':'Filled shape','panel-export':'Export',
+    'panel-png':'PNG – This Page','panel-pdf':'PDF – All Pages',
+    'panel-reset':'Reset','panel-reset-page':'Clear This Page',
+    'panel-reset-all':'Clear All','panel-kbd':'Shortcuts',
+    'prev':'◀ Previous','next':'Next ▶',
+    'drop-main':'Drop PDF, image or Word file here','drop-sub':'or click to select (.pdf, .docx, image)',
+    'rot-go':'↺ go','rot-reset':'⊘ reset',
+    'kbd-select':'Select','kbd-pen':'Pen','kbd-highlight':'Highlight',
+    'kbd-eraser':'Eraser','kbd-line':'Line','kbd-arrow':'Arrow',
+    'kbd-rect':'Rectangle','kbd-circle':'Circle','kbd-text':'Text',
+    'kbd-stamp':'Image Stamp','kbd-sig':'Signature','kbd-snip':'Copy Area','kbd-translate':'Translate',
+    'kbd-fullscreen':'Fullscreen','kbd-cancel':'Cancel','kbd-save':'Save PDF',
+    'kbd-page':'Page ◀▶',
+    'about-tagline':'PDF editor, annotator and watermark remover',
+    'about-rights':'All rights reserved.','about-apps':'Other Apps',
+    'app-biostat':'Biostatistics App','app-flow':'Academic Flow Designer',
+    'app-dicom':'DICOM Viewer','app-notes':'Notes App',
+    'app-portal':'drtr.uk — All Tools',
+  }
+};
+
+let _lang = localStorage.getItem('pdf_annotator_lang') || 'tr';
+
+function applyLang(lang) {
+  _lang = lang;
+  localStorage.setItem('pdf_annotator_lang', lang);
+  document.documentElement.lang = lang;
+  document.getElementById('lang-label').textContent = lang === 'tr' ? 'EN' : 'TR';
+  const dict = I18N[lang];
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (dict[key] !== undefined) el.textContent = dict[key];
+  });
+  document.querySelectorAll('[data-tip-en]').forEach(el => {
+    el.setAttribute('data-tip', lang === 'en'
+      ? el.getAttribute('data-tip-en')
+      : (el.getAttribute('data-tip-tr') || el.getAttribute('data-tip'))
+    );
+  });
+}
+
+function toggleLang() { applyLang(_lang === 'tr' ? 'en' : 'tr'); }
+
+/* store original TR tips before first toggle */
+document.querySelectorAll('[data-tip-en]').forEach(el => {
+  el.setAttribute('data-tip-tr', el.getAttribute('data-tip'));
+});
+
+/* apply saved language on load */
+applyLang(_lang);
+
+/* ═══════════════════════════════════════════════════════════
+   ABOUT MODAL
+═══════════════════════════════════════════════════════════ */
+function openAbout() { document.getElementById('about-overlay').classList.add('show'); }
+function closeAbout() { document.getElementById('about-overlay').classList.remove('show'); }
+document.getElementById('about-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('about-overlay')) closeAbout();
+});
+
+/* ═══════════════════════════════════════════════════════════
    STATE
 ═══════════════════════════════════════════════════════════ */
 let pdfDoc       = null;   // main loaded PDF
@@ -1020,10 +1259,20 @@ function onDragLeave() { document.getElementById('drop-zone').classList.remove('
 function onDrop(e) {
   e.preventDefault(); document.getElementById('drop-zone').classList.remove('drag-over');
   const f = e.dataTransfer.files[0];
-  if (f && f.type === 'application/pdf') loadFile(f);
+  if (f) loadFile(f);
 }
 
 async function loadFile(file) {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || ext === 'docx') {
+    return _loadWordFile(file);
+  } else if (file.type.startsWith('image/') || ['jpg','jpeg','png','gif','bmp','webp','svg','avif'].includes(ext)) {
+    return _loadImageFile(file);
+  }
+  return _loadPdfFile(file);
+}
+
+async function _loadPdfFile(file) {
   document.getElementById('file-name').textContent = file.name;
   const data = await file.arrayBuffer();
   // Keep a copy for pdf-lib — pdf.js may transfer (detach) the original ArrayBuffer to its worker
@@ -1051,6 +1300,48 @@ async function loadFile(file) {
   updateNav();
   buildThumbTray();
   generateThumbnails();
+}
+
+async function _loadImageFile(file) {
+  document.getElementById('file-name').textContent = file.name;
+  const url = await fileToDataURL(file);
+  const img = new Image(); img.src = url;
+  await new Promise(r => { img.onload = r; if (img.complete) r(); });
+  pages = []; pageAnnotations = {}; currentTool = 'select';
+  if (fc) fc.clear();
+  pages.push({ type:'image', imageUrl:url, width:img.naturalWidth, height:img.naturalHeight, thumbnail:null, rotation:0 });
+  currentPage = 1;
+  _searchQuery = ''; _searchResults = []; _searchCurrent = -1;
+  if (_searchOpen) closeSearch();
+  fitWidthScale();
+  await renderPage(1);
+  document.getElementById('drop-zone').style.display = 'none';
+  document.getElementById('canvas-wrapper').style.display = 'block';
+  updateNav(); buildThumbTray(); generateThumbnails();
+}
+
+async function _loadWordFile(file) {
+  document.getElementById('file-name').textContent = file.name;
+  const buf = await file.arrayBuffer();
+  const res = await mammoth.convertToHtml({ arrayBuffer: buf });
+  const host = document.getElementById('word-render-host');
+  host.innerHTML = res.value;
+  host.style.display = 'block';
+  await new Promise(r => setTimeout(r, 200));
+  const cvs = await html2canvas(host, { scale: 1, useCORS: true, logging: false });
+  host.style.display = ''; host.innerHTML = '';
+  const url = cvs.toDataURL('image/jpeg', 0.88);
+  pages = []; pageAnnotations = {}; currentTool = 'select';
+  if (fc) fc.clear();
+  pages.push({ type:'image', imageUrl:url, width:cvs.width, height:cvs.height, thumbnail:null, rotation:0 });
+  currentPage = 1;
+  _searchQuery = ''; _searchResults = []; _searchCurrent = -1;
+  if (_searchOpen) closeSearch();
+  fitWidthScale();
+  await renderPage(1);
+  document.getElementById('drop-zone').style.display = 'none';
+  document.getElementById('canvas-wrapper').style.display = 'block';
+  updateNav(); buildThumbTray(); generateThumbnails();
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1518,10 +1809,13 @@ function restoreObjects(defs) {
 function savePagePNG() {
   if (!fc) return;
   saveCurrentAnnotations();
+  const baseName = (document.getElementById('file-name')?.textContent || 'sayfa')
+    .replace(/\.[^.]+$/, '').replace(/—\s*/, '') || 'sayfa';
   const link = document.createElement('a');
-  link.download = `sayfa_${currentPage}.png`;
-  link.href = fc.toDataURL({ format:'png', quality:1 });
+  link.download = `${baseName}_sayfa${currentPage}.png`;
+  link.href = fc.toDataURL({ format: 'png', multiplier: 2 });
   link.click();
+  showToast(_lang === 'tr' ? 'PNG olarak indirildi ✓' : 'Saved as PNG ✓');
 }
 
 async function savePDF() {
@@ -1634,11 +1928,12 @@ async function savePDF() {
     }
 
     // ── Fallback: embed full canvas as PNG (image pages or rotated PDF pages) ──
-    const imgData  = fc.toDataURL({ format: 'png', enableRetinaScaling: false });
+    const imgData  = fc.toDataURL({ format: 'png', multiplier: 2 });
     const imgBytes = _dataUrlToUint8(imgData);
-    const pdfPage  = resultDoc.addPage([pd.width, pd.height]);
+    // Use canvas display dimensions — they match the embedded PNG's aspect ratio exactly
+    const pdfPage  = resultDoc.addPage([fc.width, fc.height]);
     const embImg   = await resultDoc.embedPng(imgBytes);
-    pdfPage.drawImage(embImg, { x: 0, y: 0, width: pd.width, height: pd.height });
+    pdfPage.drawImage(embImg, { x: 0, y: 0, width: fc.width, height: fc.height });
   }
 
   bar.style.width = '100%';
@@ -1657,6 +1952,7 @@ async function savePDF() {
                .replace(/\.pdf$/i, '') + '.pdf';
   a.click();
   URL.revokeObjectURL(url);
+  showToast(_lang === 'tr' ? 'PDF indirildi ✓' : 'PDF saved ✓');
 }
 
 
@@ -1868,6 +2164,35 @@ async function genDraftThumbs() {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   IMAGE STAMP
+═══════════════════════════════════════════════════════════ */
+function openStampPicker() {
+  if (!fc) { alert(_lang === 'tr' ? 'Önce bir dosya açın.' : 'Open a file first.'); return; }
+  document.getElementById('stamp-input').click();
+}
+
+document.getElementById('stamp-input').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return; e.target.value = '';
+  const url = await fileToDataURL(f);
+  insertImageStamp(url);
+});
+
+function insertImageStamp(url) {
+  if (!fc) return;
+  fabric.Image.fromURL(url, img => {
+    const maxW = Math.min(300, fc.width / 2);
+    img.scaleToWidth(maxW);
+    img.set({
+      left: fc.width  / 2 - img.getScaledWidth()  / 2,
+      top:  fc.height / 2 - img.getScaledHeight() / 2,
+      selectable: true, evented: true
+    });
+    fc.add(img); fc.setActiveObject(img); fc.renderAll();
+    setTool('select'); pushUndo();
+  }, { crossOrigin: 'anonymous' });
+}
+
+/* ═══════════════════════════════════════════════════════════
    SIGNATURE SYSTEM
 ═══════════════════════════════════════════════════════════ */
 const SIG_KEY = 'pdf_annotations_sigs_v1';
@@ -1976,6 +2301,7 @@ document.addEventListener('keydown', e => {
     case 'r': setTool('rect');      break;
     case 'c': setTool('circle');    break;
     case 't': setTool('text');      break;
+    case 'i': openStampPicker();    break;
     case 's': openSigModal();       break;
     case '+': case '=': zoom(+0.25); break;
     case '-':           zoom(-0.25); break;
