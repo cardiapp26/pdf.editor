@@ -4,13 +4,34 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PDF Annotator</title>
-  <meta name="description" content="PDF editor, annotator and watermark remover">
+  <meta name="description" content="Free browser-based PDF editor. Annotate, draw, highlight, add text and signatures, remove watermarks, organize pages — no uploads, works offline.">
+  <meta name="keywords" content="pdf editor, pdf annotator, pdf annotation, sign pdf, highlight pdf, watermark remover, pdf online, free pdf editor">
+  <meta name="author" content="Dr. Yusuf Hoşoğlu">
+  <meta name="robots" content="index, follow">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="PDF Annotator — Edit, Annotate &amp; Sign PDFs">
+  <meta property="og:description" content="Free browser-based PDF editor. Draw, highlight, add text &amp; signatures, remove watermarks, organize pages. No uploads — 100% private.">
+  <meta property="og:image" content="icon-512.png">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="PDF Annotator — Edit, Annotate &amp; Sign PDFs">
+  <meta name="twitter:description" content="Free browser-based PDF editor. No uploads, works offline.">
+  <meta name="twitter:image" content="icon-512.png">
+
+  <!-- PWA / App -->
   <meta name="theme-color" content="#e94560">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="PDF Annotator">
+  <meta name="mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
@@ -81,20 +102,24 @@
     .t-btn svg { width:16px; height:16px; flex-shrink:0; }
     /* custom rotate input */
     .t-rot-wrap {
-      display:flex; flex-direction:column; align-items:center; gap:2px; width:34px;
+      display:flex; flex-direction:row; align-items:center; gap:4px;
     }
     .t-rot-inp {
-      width:32px; height:22px; border:1px solid var(--border); border-radius:5px;
-      font-size:10px; text-align:center; background:#fff; color:var(--text);
-      outline:none; padding:0 2px;
+      width:46px; height:28px; border:1px solid var(--border); border-radius:5px;
+      font-size:11px; text-align:center; background:#fff; color:var(--text);
+      outline:none; padding:0 4px;
     }
     .t-rot-inp:focus { border-color:var(--accent); }
     .t-rot-go {
-      width:32px; height:20px; border:1px solid var(--border); border-radius:5px;
-      font-size:9px; background:transparent; color:var(--muted); cursor:pointer;
-      display:flex; align-items:center; justify-content:center;
+      height:28px; padding:0 8px; border:1px solid var(--border); border-radius:5px;
+      font-size:11px; background:transparent; color:var(--muted); cursor:pointer;
+      display:flex; align-items:center; justify-content:center; white-space:nowrap;
     }
     .t-rot-go:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+    #bottom-nav .t-btn { width:30px; height:30px; }
+    #bottom-nav .t-btn::after { left:50%; transform:translateX(-50%); top:auto; bottom:calc(100% + 6px); }
+    .b-sep { width:1px; height:22px; background:var(--border); margin:0 4px; flex-shrink:0; }
     .t-btn:hover { background:var(--hover); color:var(--text); }
     .t-btn.active { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(233,69,96,.35); }
     .t-btn.active svg { stroke:#fff; }
@@ -603,6 +628,83 @@
     .rt-btn.apply:disabled { opacity:.38; cursor:not-allowed; pointer-events:none; }
     .rt-btn.cancel { background:transparent; color:var(--muted); }
     .rt-btn.cancel:hover { background:var(--hover); }
+
+    /* ── MOBILE ─────────────────────────────────── */
+    @media (max-width: 768px) {
+      /* Header: scrollable, icon-only buttons */
+      #header {
+        height:48px; padding:0 8px; gap:4px;
+        overflow-x:auto; overflow-y:hidden;
+        -webkit-overflow-scrolling:touch; scrollbar-width:none;
+      }
+      #header::-webkit-scrollbar { display:none; }
+      .logo span { display:none; }
+      .header-sep { flex:0 0 4px; }
+      .h-btn { padding:0 8px; height:34px; min-width:34px; justify-content:center; box-shadow:none; }
+      .h-btn span { display:none; }
+      /* Keep save/clear labels on primary actions */
+      .h-btn.primary span, .h-btn.danger span { display:inline; font-size:11px; }
+      #file-name { max-width:90px; font-size:11px; }
+
+      /* Toolbar: slightly narrower */
+      #toolbar { width:40px; padding:4px 0; }
+      .t-btn { width:32px; height:32px; }
+
+      /* Hide right panel entirely */
+      #right-panel { display:none !important; }
+
+      /* Canvas: less padding */
+      #canvas-area { padding:12px 8px; }
+      #drop-zone { width:min(90vw, 400px); height:auto; min-height:180px; padding:24px 16px; }
+
+      /* Bottom nav: 2 rows */
+      #bottom-nav {
+        height:auto; flex-wrap:wrap; gap:4px 6px;
+        padding:6px 10px; justify-content:center;
+      }
+      /* Row 1: page nav (full width) */
+      #prev-btn, #page-info, #next-btn, #zoom-info { flex-shrink:0; }
+      /* Separator before zoom becomes line break */
+      #bottom-nav > .b-sep:first-of-type { width:100%; height:1px; margin:2px 0; }
+      /* Row 2: zoom + rotate */
+      #bottom-nav .t-btn { width:34px; height:34px; }
+      .t-rot-inp { width:44px; height:30px; font-size:12px; }
+      .t-rot-go  { height:30px; font-size:11px; }
+
+      /* Thumb tray: tap to open (add JS toggle via button) */
+      #bottom-area:hover #thumb-tray { height:0; padding:0; }
+      #bottom-area.thumb-open #thumb-tray { height:130px; padding:8px 12px; }
+
+      /* Modals: full-width on mobile */
+      #sig-modal, #about-modal, #remove-text-modal {
+        width:100vw !important; max-width:100vw !important;
+        border-radius:16px 16px 0 0; margin-top:auto; align-self:flex-end;
+      }
+      #sig-overlay, #about-overlay, #remove-text-overlay {
+        align-items:flex-end !important;
+      }
+      #organize-panel {
+        width:100vw; max-width:100vw; height:92vh;
+        border-radius:16px 16px 0 0;
+      }
+      #organize-overlay { align-items:flex-end !important; }
+
+      /* Remove text modal body: stack buttons */
+      #rt-body { gap:8px; }
+      .rt-btn { width:100%; }
+
+      /* Progress overlay text */
+      #progress-overlay > div { width:90vw; }
+
+      /* Tooltip: disable on touch (they hover-flicker on mobile) */
+      .t-btn::after, .h-btn::after { display:none !important; }
+    }
+
+    @media (max-width: 480px) {
+      .h-btn.primary span, .h-btn.danger span { display:none; }
+      .nav-btn { padding:5px 12px; font-size:12px; }
+      #page-info { min-width:60px; font-size:12px; }
+    }
   </style>
 </head>
 <body>
@@ -732,29 +834,6 @@
         <path d="M14 18h6"/>
       </svg>
     </button>
-    <div class="t-sep"></div>
-    <button class="t-btn" data-tip="Yakınlaştır (+)" data-tip-en="Zoom In (+)" onclick="zoom(+0.25)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-    </button>
-    <button class="t-btn" data-tip="Uzaklaştır (−)" data-tip-en="Zoom Out (−)" onclick="zoom(-0.25)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-    </button>
-    <div class="t-sep"></div>
-    <button class="t-btn" data-tip="Sola Döndür (−90°)" data-tip-en="Rotate Left (−90°)" onclick="rotatePage(-90)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6h6"/><path d="M2.66 15.57a10 10 0 1 0 .57-8.38"/></svg>
-    </button>
-    <button class="t-btn" data-tip="Sağa Döndür (+90°)" data-tip-en="Rotate Right (+90°)" onclick="rotatePage(90)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg>
-    </button>
-    <button class="t-btn" data-tip="180° Döndür" data-tip-en="Rotate 180°" onclick="rotatePage(180)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.52"/></svg>
-    </button>
-    <div class="t-rot-wrap">
-      <input id="t-rot-deg" class="t-rot-inp" type="number" value="45" min="-360" max="360"
-             onkeydown="if(event.key==='Enter'){rotatePageCustom();event.preventDefault();}">
-      <button class="t-rot-go" onclick="rotatePageCustom()" data-i18n="rot-go">↺ git</button>
-      <button class="t-rot-go" onclick="rotatePage(0,true)" data-i18n="rot-reset">⊘ sıfır</button>
-    </div>
   </div>
 
   <!-- Canvas Area -->
@@ -840,7 +919,30 @@
     <button class="nav-btn" id="prev-btn" onclick="prevPage()" disabled><span data-i18n="prev">◀ Önceki</span></button>
     <span id="page-info">— / —</span>
     <button class="nav-btn" id="next-btn" onclick="nextPage()" disabled><span data-i18n="next">Sonraki ▶</span></button>
-    <span id="zoom-info" style="margin-left:8px">125%</span>
+    <span id="zoom-info" style="margin-left:4px">125%</span>
+    <div class="b-sep"></div>
+    <button class="t-btn" data-tip="Yakınlaştır (+)" data-tip-en="Zoom In (+)" onclick="zoom(+0.25)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    </button>
+    <button class="t-btn" data-tip="Uzaklaştır (−)" data-tip-en="Zoom Out (−)" onclick="zoom(-0.25)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    </button>
+    <div class="b-sep"></div>
+    <button class="t-btn" data-tip="Sola Döndür (−90°)" data-tip-en="Rotate Left (−90°)" onclick="rotatePage(-90)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6h6"/><path d="M2.66 15.57a10 10 0 1 0 .57-8.38"/></svg>
+    </button>
+    <button class="t-btn" data-tip="Sağa Döndür (+90°)" data-tip-en="Rotate Right (+90°)" onclick="rotatePage(90)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg>
+    </button>
+    <button class="t-btn" data-tip="180° Döndür" data-tip-en="Rotate 180°" onclick="rotatePage(180)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.52"/></svg>
+    </button>
+    <div class="t-rot-wrap">
+      <input id="t-rot-deg" class="t-rot-inp" type="number" value="45" min="-360" max="360"
+             onkeydown="if(event.key==='Enter'){rotatePageCustom();event.preventDefault();}">
+      <button class="t-rot-go" onclick="rotatePageCustom()" data-i18n="rot-go">↺ git</button>
+      <button class="t-rot-go" onclick="rotatePage(0,true)" data-i18n="rot-reset">⊘ sıfır</button>
+    </div>
   </div>
 </div>
 
@@ -1451,6 +1553,16 @@ function saveCurrentAnnotations() { if (fc) pageAnnotations[currentPage] = fc.to
 /* ═══════════════════════════════════════════════════════════
    THUMBNAILS
 ═══════════════════════════════════════════════════════════ */
+/* Mobile: tap bottom-nav page-info to toggle thumb tray */
+document.getElementById('page-info').addEventListener('click', () => {
+  if (window.innerWidth > 768) return;
+  document.getElementById('bottom-area').classList.toggle('thumb-open');
+});
+document.getElementById('thumb-tray').addEventListener('click', () => {
+  if (window.innerWidth > 768) return;
+  document.getElementById('bottom-area').classList.remove('thumb-open');
+});
+
 function buildThumbTray() {
   const tray = document.getElementById('thumb-tray');
   tray.innerHTML = '';

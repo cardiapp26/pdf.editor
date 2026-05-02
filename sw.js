@@ -1,5 +1,11 @@
-const CACHE = 'pdf-annotator-v1';
-const LOCAL = ['/', './index.html', './manifest.json'];
+const CACHE = 'pdf-annotator-v2';
+const LOCAL = [
+  './',
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png'
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(LOCAL).catch(() => {})));
