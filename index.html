@@ -415,6 +415,22 @@
     }
     .tp-lang-btn:hover { background:var(--blue); color:#fff; border-color:var(--blue); }
 
+    #text-context-menu {
+      display:none; position:fixed; z-index:520;
+      min-width:132px; padding:5px; background:#fff;
+      border:1px solid var(--border); border-radius:9px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.16);
+    }
+    #text-context-menu.show { display:block; }
+    #text-context-menu button {
+      width:100%; border:none; border-radius:6px; background:transparent;
+      color:var(--text); cursor:pointer; font-size:12px; font-weight:600;
+      padding:7px 10px; display:flex; align-items:center; gap:8px;
+      text-align:left;
+    }
+    #text-context-menu button:hover { background:#eff6ff; color:var(--blue); }
+    #text-context-menu svg { flex-shrink:0; }
+
     /* ── TOAST ──────────────────────────────────── */
     #toast {
       position:fixed; bottom:68px; left:50%; transform:translateX(-50%) translateY(8px);
@@ -1116,6 +1132,16 @@
   </div>
 </div>
 
+<div id="text-context-menu">
+  <button type="button" data-text-ctx="translate">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/>
+      <path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>
+    </svg>
+    <span data-i18n="textctx-translate">Çevir</span>
+  </button>
+</div>
+
 <!-- ── TEXT FORMAT BAR ──────────────────────────────────── -->
 <div id="text-format-bar">
   <select id="tf-family" onchange="applyTextProp('fontFamily', this.value)">
@@ -1195,6 +1221,7 @@ const I18N = {
     'kbd-stamp':'Resim Damgası','kbd-sig':'İmza','kbd-snip':'Alan Kopyala','kbd-translate':'Çeviri Modu',
     'kbd-fullscreen':'Tam Ekran','kbd-cancel':'İptal','kbd-save':'Kaydet PDF',
     'kbd-page':'Sayfa ◀▶',
+    'textctx-translate':'Çevir',
     'about-tagline':'PDF düzenleyici, açıklama aracı ve filigran temizleyici',
     'about-rights':'Tüm hakları saklıdır.','about-apps':'Diğer Uygulamalar',
     'app-biostat':'Biyoistatistik Uygulaması','app-flow':'Akademik Akış Tasarımcısı',
@@ -1219,6 +1246,7 @@ const I18N = {
     'kbd-stamp':'Image Stamp','kbd-sig':'Signature','kbd-snip':'Copy Area','kbd-translate':'Translate',
     'kbd-fullscreen':'Fullscreen','kbd-cancel':'Cancel','kbd-save':'Save PDF',
     'kbd-page':'Page ◀▶',
+    'textctx-translate':'Translate',
     'about-tagline':'PDF editor, annotator and watermark remover',
     'about-rights':'All rights reserved.','about-apps':'Other Apps',
     'app-biostat':'Biostatistics App','app-flow':'Academic Flow Designer',
@@ -2650,6 +2678,91 @@ function drawTlHighlights(range) {
     }
   });
 })();
+
+let _textCtxObject = null;
+let _textCtxPoint = null;
+
+function isFabricTextObject(obj) {
+  return obj && (obj.type === 'i-text' || obj.type === 'textbox');
+}
+
+function getFabricTextAtClientPoint(e) {
+  if (!fc) return null;
+  const ca = document.getElementById('canvas-area');
+  if (!ca || !ca.contains(e.target)) return null;
+  const canvasEl = fc.upperCanvasEl || fc.lowerCanvasEl;
+  if (!canvasEl) return null;
+  const rect = canvasEl.getBoundingClientRect();
+  if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return null;
+  const x = (e.clientX - rect.left) * (fc.width / rect.width);
+  const y = (e.clientY - rect.top) * (fc.height / rect.height);
+  const pt = new fabric.Point(x, y);
+  return fc.getObjects().slice().reverse().find(obj =>
+    isFabricTextObject(obj) && obj.visible !== false && obj.containsPoint(pt, null, true)
+  ) || null;
+}
+
+function getTextObjectTranslateText(obj) {
+  if (!isFabricTextObject(obj)) return '';
+  const text = String(obj.text || '');
+  if (obj.isEditing && Number.isInteger(obj.selectionStart) && Number.isInteger(obj.selectionEnd) && obj.selectionStart !== obj.selectionEnd) {
+    return text.slice(Math.min(obj.selectionStart, obj.selectionEnd), Math.max(obj.selectionStart, obj.selectionEnd)).trim();
+  }
+  return text.trim();
+}
+
+function showTextContextMenu(obj, x, y) {
+  const menu = document.getElementById('text-context-menu');
+  if (!menu) return;
+  _textCtxObject = obj;
+  _textCtxPoint = { x, y };
+  menu.style.left = Math.max(4, Math.min(x, window.innerWidth - 150)) + 'px';
+  menu.style.top = Math.max(4, Math.min(y, window.innerHeight - 46)) + 'px';
+  menu.classList.add('show');
+}
+
+function hideTextContextMenu() {
+  const menu = document.getElementById('text-context-menu');
+  if (menu) menu.classList.remove('show');
+  _textCtxObject = null;
+  _textCtxPoint = null;
+}
+
+document.addEventListener('contextmenu', e => {
+  const obj = getFabricTextAtClientPoint(e);
+  if (!obj) return;
+  const text = getTextObjectTranslateText(obj);
+  if (!text) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  hideTranslatePopup();
+  fc.setActiveObject(obj);
+  fc.renderAll();
+  showTextContextMenu(obj, e.clientX, e.clientY);
+});
+
+document.getElementById('text-context-menu')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-text-ctx]');
+  if (!btn) return;
+  const action = btn.getAttribute('data-text-ctx');
+  if (action === 'translate' && _textCtxObject) {
+    const text = getTextObjectTranslateText(_textCtxObject);
+    if (text) {
+      _lastTranslateText = text;
+      const p = _textCtxPoint || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      hideTextContextMenu();
+      showTranslatePopup(text, p.x + 4, p.y + 4);
+    }
+  }
+});
+
+document.addEventListener('mousedown', e => {
+  const menu = document.getElementById('text-context-menu');
+  if (menu && menu.classList.contains('show') && !menu.contains(e.target)) hideTextContextMenu();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') hideTextContextMenu();
+});
 
 // Right-click on selected text inside canvas area → translate/copy popup
 document.addEventListener('contextmenu', e => {
