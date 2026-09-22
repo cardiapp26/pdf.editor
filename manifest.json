@@ -1,10 +1,10 @@
 {
-  "id": "./",
-  "name": "PDF Annotator — Edit, Annotate & Sign PDFs",
+  "id": "/",
+  "name": "PDF Annotator",
   "short_name": "PDF Annotator",
   "description": "A free, browser-based PDF editor. Annotate, draw, highlight, add text and signatures, remove watermarks, organize pages, and export — all without uploading files to any server. Works offline.",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f0f2f5",
   "theme_color": "#e94560",
@@ -17,27 +17,20 @@
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
-  "screenshots": [],
   "shortcuts": [
     {
       "name": "Open PDF",
       "short_name": "Open",
       "description": "Open a PDF file for editing",
-      "url": "./?action=open"
+      "url": "/?action=open"
     }
   ],
   "file_handlers": [
     {
-      "action": "./",
-      "name": "PDF Document",
-      "icons": [
-        { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-        { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
-      ],
+      "action": "/",
       "accept": {
         "application/pdf": [".pdf"]
-      },
-      "launch_type": "multiple-clients"
+      }
     }
   ]
 }
