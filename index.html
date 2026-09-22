@@ -1479,6 +1479,36 @@ async function _loadWordFile(file) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   PWA FILE HANDLING API (Mac & Windows Right-Click / Open With)
+═══════════════════════════════════════════════════════════ */
+if ('launchQueue' in window && 'files' in LaunchParams.prototype) {
+  launchQueue.setConsumer(async (launchParams) => {
+    if (!launchParams.files || !launchParams.files.length) return;
+    try {
+      const [fileHandle] = launchParams.files;
+      const file = await fileHandle.getFile();
+      if (file) {
+        if (document.readyState === 'loading') {
+          await new Promise(resolve => window.addEventListener('DOMContentLoaded', resolve, { once: true }));
+        }
+        await loadFile(file);
+      }
+    } catch (err) {
+      console.error('[LaunchQueue] Error opening file:', err);
+    }
+  });
+}
+
+// Handle PWA shortcut action (e.g. "./?action=open")
+if (new URLSearchParams(window.location.search).get('action') === 'open') {
+  window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      document.getElementById('file-input')?.click();
+    }, 100);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
    RENDER PAGE
 ═══════════════════════════════════════════════════════════ */
 async function renderPage(num) {

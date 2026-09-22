@@ -25,5 +25,19 @@
       "description": "Open a PDF file for editing",
       "url": "./?action=open"
     }
+  ],
+  "file_handlers": [
+    {
+      "action": "./",
+      "name": "PDF Document",
+      "icons": [
+        { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+        { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+      ],
+      "accept": {
+        "application/pdf": [".pdf"]
+      },
+      "launch_type": "multiple-clients"
+    }
   ]
 }
