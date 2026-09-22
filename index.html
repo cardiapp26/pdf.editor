@@ -23,8 +23,8 @@
   <meta name="twitter:image" content="icon-512.png">
 
   <!-- PWA / App -->
-  <meta name="app-version" content="1.2.0">
-  <meta name="app-build" content="20260922">
+  <meta name="app-version" content="1.2.1">
+  <meta name="app-build" content="20260922-1514">
   <meta name="theme-color" content="#e94560">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -82,6 +82,20 @@
     .h-btn.danger  { background:var(--accent); color:#fff; border-color:transparent; }
     .h-btn.danger:hover  { background:#c9304d; }
     .h-btn.organize { background:var(--panel); color:var(--text); }
+    .h-btn.update-btn { position:relative; background:var(--panel); color:var(--text); }
+    .h-btn.update-btn:hover { background:var(--hover); color:var(--accent); border-color:var(--accent); }
+    .h-btn.update-btn.has-update {
+      background:#fff5f5; color:var(--accent); border-color:var(--accent);
+      animation: update-btn-glow 2.5s infinite;
+    }
+    @keyframes update-btn-glow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0.4); }
+      50% { box-shadow: 0 0 0 4px rgba(233, 69, 96, 0.2); }
+    }
+    .update-dot {
+      width: 7px; height: 7px; background: var(--accent); border-radius: 50%;
+      position: absolute; top: 4px; right: 4px; box-shadow: 0 0 0 2px #fff;
+    }
     #file-name { font-size:12px; color:var(--muted); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
     #file-name:hover { color:var(--text); text-decoration:underline dotted; }
     #file-name-input { font-size:12px; color:var(--text); border:1px solid var(--accent); border-radius:4px; padding:1px 5px; width:160px; outline:none; display:none; }
@@ -995,6 +1009,12 @@
     <span id="lang-label">TR</span>
   </button>
 
+  <button class="h-btn update-btn" id="header-update-btn" onclick="openUpdatePromptModal()" title="Uygulamayı Güncelle / Update App">
+    <svg id="header-update-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    <span data-i18n="update-app">Güncelle</span>
+    <span id="header-update-dot" class="update-dot" style="display:none"></span>
+  </button>
+
   <button class="h-btn" onclick="openAbout()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
     <span data-i18n="about">Hakkında</span>
@@ -1279,7 +1299,7 @@
         <div class="about-section-title" data-i18n="about-version-title">Uygulama Sürümü</div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fafafa;padding:10px 14px;border:1px solid var(--border);border-radius:10px;">
           <div>
-            <div style="font-size:12px;font-weight:700;color:var(--text);">v1.2.0 <span style="font-size:10.5px;font-weight:400;color:var(--muted);font-family:monospace;">(Build 20260922)</span></div>
+            <div style="font-size:12px;font-weight:700;color:var(--text);">v1.2.1 <span style="font-size:10.5px;font-weight:400;color:var(--muted);font-family:monospace;">(Build 20260922-1514)</span></div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="about-update-status" data-i18n="about-up-to-date">En son sürümü kullanıyorsunuz</div>
           </div>
           <button id="about-check-update-btn" class="up-btn up-btn-primary" style="padding:6px 12px;font-size:11.5px;" onclick="checkAppUpdateManual()">
@@ -1454,7 +1474,7 @@
   <div class="up-card-body">
     <p id="up-text" class="up-text" data-i18n="up-desc">PDF Annotator güncellendi. Bu sekme eski sürümü çalıştırıyor olabilir; yeni özellikleri almak için yenileyin.</p>
     <p class="up-version-tag">
-      <span data-i18n="up-version-label">Mevcut</span>: <code id="up-version-val">v1.2.0 (Build 20260922)</code>
+      <span data-i18n="up-version-label">Mevcut</span>: <code id="up-version-val">v1.2.1 (Build 20260922-1514)</code>
     </p>
     <div class="up-actions">
       <button id="up-later" class="up-btn up-btn-later" type="button" data-i18n="up-later" onclick="dismissUpdatePrompt()">Sonra</button>
@@ -1489,13 +1509,18 @@ function showUpdatePrompt(info) {
   const prompt = document.getElementById('update-prompt');
   if (!prompt) return;
 
-  if (info && info.version) {
-    const valEl = document.getElementById('up-version-val');
-    if (valEl) valEl.textContent = `v${info.version}${info.build ? ' (Build ' + info.build + ')' : ''}`;
-  }
+  const ver = (info && info.version) || document.querySelector('meta[name="app-version"]')?.getAttribute('content') || '1.2.0';
+  const bld = (info && info.build) || document.querySelector('meta[name="app-build"]')?.getAttribute('content') || '20260922';
+  const valEl = document.getElementById('up-version-val');
+  if (valEl) valEl.textContent = `v${ver} (Build ${bld})`;
 
   const status = document.getElementById('about-update-status');
   if (status) status.textContent = I18N[_lang]['about-has-update'] || 'Yeni sürüm mevcut!';
+
+  const headerBtn = document.getElementById('header-update-btn');
+  const headerDot = document.getElementById('header-update-dot');
+  if (headerBtn) headerBtn.classList.add('has-update');
+  if (headerDot) headerDot.style.display = 'block';
 
   prompt.hidden = false;
 }
@@ -1503,6 +1528,11 @@ function showUpdatePrompt(info) {
 function dismissUpdatePrompt() {
   const prompt = document.getElementById('update-prompt');
   if (prompt) prompt.hidden = true;
+}
+
+function openUpdatePromptModal() {
+  showUpdatePrompt();
+  checkAppUpdateManual();
 }
 
 async function triggerAppUpdate() {
@@ -1630,7 +1660,8 @@ function initServiceWorkerUpdater() {
   _hasController = !!navigator.serviceWorker.controller;
 
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (_updateReloading || _hasController) {
+    showUpdatePrompt();
+    if (_updateReloading) {
       window.location.reload();
     }
   });
@@ -1666,6 +1697,7 @@ initServiceWorkerUpdater();
 // Debug / testing hooks
 window.__showUpdatePrompt = showUpdatePrompt;
 window.__checkAppUpdate = checkAppUpdateManual;
+window.__openUpdatePrompt = openUpdatePromptModal;
 
 /* ═══════════════════════════════════════════════════════════
    I18N — TR / EN
@@ -1675,6 +1707,7 @@ const I18N = {
     'open':'PDF Aç','undo':'Geri Al','redo':'İleri Al','fullscreen':'Tam Ekran',
     'search':'Ara','remove-text':'Metin Sil','organize':'Sayfaları Düzenle',
     'save':"PDF'yi Kaydet",'clear':'Temizle','about':'Hakkında',
+    'update-app':'Güncelle',
     'panel-color':'Renk','panel-width':'Kalınlık','panel-opacity':'Opaklık',
     'panel-shape':'Şekil','panel-fill':'Dolu şekil','panel-export':'Dışa Aktar',
     'panel-png':'PNG – Bu Sayfa','panel-pdf':'PDF – Tüm Sayfalar',
@@ -1711,6 +1744,7 @@ const I18N = {
     'open':'Open PDF','undo':'Undo','redo':'Redo','fullscreen':'Fullscreen',
     'search':'Search','remove-text':'Remove Text','organize':'Organize Pages',
     'save':'Save PDF','clear':'Clear','about':'About',
+    'update-app':'Update',
     'panel-color':'Color','panel-width':'Thickness','panel-opacity':'Opacity',
     'panel-shape':'Shape','panel-fill':'Filled shape','panel-export':'Export',
     'panel-png':'PNG – This Page','panel-pdf':'PDF – All Pages',
