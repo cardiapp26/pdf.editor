@@ -23,8 +23,8 @@
   <meta name="twitter:image" content="icon-512.png">
 
   <!-- PWA / App -->
-  <meta name="app-version" content="1.2.1">
-  <meta name="app-build" content="20260922-1514">
+  <meta name="app-version" content="1.2.2">
+  <meta name="app-build" content="20260922-1525">
   <meta name="theme-color" content="#e94560">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -375,8 +375,8 @@
     #snip-overlay.active { display:block; }
     #snip-sel {
       display:none; position:fixed; pointer-events:none; z-index:51;
-      border:2px solid #2563eb; background:rgba(37,99,235,0.07);
-      border-radius:2px;
+      border:2px dashed #2563eb; background:rgba(37,99,235,0.08);
+      border-radius:4px; box-shadow:0 0 0 1px rgba(255,255,255,0.85);
     }
     /* dim everything outside canvas when snip active */
     #snip-overlay::before {
@@ -1355,7 +1355,8 @@
 <div id="snip-overlay"></div>
 <div id="snip-sel"></div>
 <div id="snip-action-bar">
-  <span class="snip-act-label">Gönder:</span>
+  <span class="snip-act-label">Alıntı:</span>
+  <span id="snip-type-badge" style="font-size:10px;background:#e0f2fe;color:#0369a1;padding:2px 6px;border-radius:4px;font-weight:700;display:none;"></span>
   <button class="snip-act-btn act-copy" onclick="copyCurrentSnip()" title="Panoya Kopyala">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
     <span>Kopyala</span>
@@ -2246,7 +2247,9 @@ function setTool(tool) {
   switch (tool) {
     case 'select':
       fc.selection = true; fc.defaultCursor = 'default';
-      fc.getObjects().forEach(o => { o.selectable = true; o.evented = true; }); fc.renderAll(); break;
+      fc.getObjects().forEach(o => { o.selectable = true; o.evented = true; }); fc.renderAll();
+      setupSelectToolSnip();
+      break;
     case 'pen':
       fc.isDrawingMode = true; fc.freeDrawingBrush = new fabric.PencilBrush(fc);
       fc.freeDrawingBrush.color = hexToRgba(currentColor, currentOpacity);
@@ -3215,17 +3218,42 @@ function drawTlHighlights(range) {
     } catch(err) {}
   });
 
-  document.addEventListener('mouseup', e => {
+  document.addEventListener('mouseup', async e => {
     if (!_tlSelecting) return;
     _tlSelecting = false;
     const text = _lastTranslateText || (window.getSelection()?.toString() || '').trim();
     if (text.length > 1) {
       _lastTranslateText = text;
-      // In translate mode: auto-show popup on mouseup
+      // In translate mode: auto-show translate popup on mouseup
       if (translateMode) {
         const px = Math.min(e.clientX + 4, window.innerWidth  - 370);
         const py = Math.min(e.clientY + 8, window.innerHeight - 70);
         showTranslatePopup(text, px, py);
+      } else {
+        // In select mode: capture selected text bounding box as image crop AND extract text
+        let cx = 0, cy = 0, cw = 0, ch = 0;
+        try {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const r = sel.getRangeAt(0).getBoundingClientRect();
+            const wr = document.getElementById('canvas-wrapper')?.getBoundingClientRect();
+            if (wr && r.width > 8 && r.height > 6) {
+              const scaleX = fc ? fc.width / wr.width : 1;
+              const scaleY = fc ? fc.height / wr.height : 1;
+              cx = Math.max(0, (r.left - wr.left) * scaleX);
+              cy = Math.max(0, (r.top  - wr.top)  * scaleY);
+              cw = Math.min(r.width * scaleX, (fc ? fc.width : 9999) - cx);
+              ch = Math.min(r.height * scaleY, (fc ? fc.height : 9999) - cy);
+            }
+          }
+        } catch (_) {}
+
+        if (cw >= 8 && ch >= 6) {
+          await captureAndShowAreaSnip(cx, cy, cw, ch, e.clientX, e.clientY, text);
+        } else {
+          _currentSnip = { dataURL: null, blob: null, text: text };
+          showSnipBar(e.clientX, e.clientY);
+        }
       }
     } else {
       clearTlSelection();
@@ -3600,6 +3628,199 @@ function deactivateSnip() {
   sel.style.display = 'none';
 }
 
+/* ═══════════════════════════════════════════════════════════
+   TEXT EXTRACTION FROM RECTANGLE (PDF TEXT LAYER)
+═══════════════════════════════════════════════════════════ */
+function extractTextInRect(cx1, cy1, cw, ch) {
+  const tl = document.getElementById('pdf-text-layer');
+  if (!tl || !fc) return '';
+
+  const cx2 = cx1 + cw;
+  const cy2 = cy1 + ch;
+
+  const spans = Array.from(tl.querySelectorAll('span'));
+  if (!spans.length) return '';
+
+  const tlr = tl.getBoundingClientRect();
+  if (!tlr.width || !tlr.height) return '';
+
+  const scaleX = fc.width / tlr.width;
+  const scaleY = fc.height / tlr.height;
+  const matched = [];
+
+  for (const span of spans) {
+    const text = span.textContent ? span.textContent.trim() : '';
+    if (!text) continue;
+
+    const sr = span.getBoundingClientRect();
+    if (sr.width === 0 || sr.height === 0) continue;
+
+    const sx1 = (sr.left - tlr.left) * scaleX;
+    const sy1 = (sr.top  - tlr.top)  * scaleY;
+    const sx2 = (sr.right - tlr.left) * scaleX;
+    const sy2 = (sr.bottom - tlr.top) * scaleY;
+
+    // Check intersection with selection box
+    const overlapX = Math.max(0, Math.min(cx2, sx2) - Math.max(cx1, sx1));
+    const overlapY = Math.max(0, Math.min(cy2, sy2) - Math.max(cy1, sy1));
+
+    if (overlapX > 2 && overlapY > 2) {
+      matched.push({
+        top: sy1,
+        left: sx1,
+        bottom: sy2,
+        height: (sr.height || 12) * scaleY,
+        text: span.textContent
+      });
+    }
+  }
+
+  if (!matched.length) return '';
+
+  // Sort top-to-bottom, left-to-right
+  matched.sort((a, b) => {
+    const lineThreshold = Math.min(a.height, b.height) * 0.55;
+    if (Math.abs(a.top - b.top) > lineThreshold) {
+      return a.top - b.top;
+    }
+    return a.left - b.left;
+  });
+
+  // Group lines
+  let result = '';
+  let lastTop = null;
+  let lastHeight = 12;
+
+  for (const item of matched) {
+    if (lastTop === null) {
+      result += item.text;
+    } else {
+      const lineThreshold = Math.min(item.height, lastHeight) * 0.55;
+      if (Math.abs(item.top - lastTop) > lineThreshold) {
+        result += '\n' + item.text;
+      } else {
+        if (!result.endsWith(' ') && !item.text.startsWith(' ')) {
+          result += ' ';
+        }
+        result += item.text;
+      }
+    }
+    lastTop = item.top;
+    lastHeight = item.height;
+  }
+
+  return result.replace(/[ \t]+/g, ' ').replace(/\n\s+/g, '\n').trim();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AREA CAPTURE & SNIP ACTION BAR
+═══════════════════════════════════════════════════════════ */
+async function captureAndShowAreaSnip(cx, cy, cw, ch, screenX, screenY, explicitText) {
+  if (!fc || cw < 4 || ch < 4) return;
+  const clampedX = Math.max(0, Math.min(cx, fc.width - 2));
+  const clampedY = Math.max(0, Math.min(cy, fc.height - 2));
+  const clampedW = Math.min(cw, fc.width - clampedX);
+  const clampedH = Math.min(ch, fc.height - clampedY);
+  if (clampedW < 4 || clampedH < 4) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const renderMul = Math.max(dpr, 2);
+  const dataURL = fc.toDataURL({
+    format: 'png',
+    left: clampedX,
+    top: clampedY,
+    width: clampedW,
+    height: clampedH,
+    multiplier: renderMul
+  });
+
+  let blob = null;
+  try {
+    blob = await (await fetch(dataURL)).blob();
+  } catch (_) {}
+
+  // Extract text from text layer
+  const extractedText = explicitText !== undefined ? explicitText : extractTextInRect(clampedX, clampedY, clampedW, clampedH);
+
+  _currentSnip = {
+    dataURL: dataURL,
+    blob: blob,
+    text: extractedText || '',
+    cx: clampedX,
+    cy: clampedY,
+    cw: clampedW,
+    ch: clampedH
+  };
+
+  // Show visual highlight on selected area
+  const wr = document.getElementById('canvas-wrapper')?.getBoundingClientRect();
+  const sel = document.getElementById('snip-sel');
+  if (sel && wr) {
+    const scaleX = wr.width / fc.width;
+    const scaleY = wr.height / fc.height;
+    sel.style.display = 'block';
+    sel.style.left   = (wr.left + clampedX * scaleX) + 'px';
+    sel.style.top    = (wr.top  + clampedY * scaleY) + 'px';
+    sel.style.width  = (clampedW * scaleX) + 'px';
+    sel.style.height = (clampedH * scaleY) + 'px';
+  }
+
+  // Position and show action bar
+  const targetX = screenX || (wr ? wr.left + (clampedX + clampedW / 2) * (wr.width / fc.width) : window.innerWidth / 2);
+  const targetY = screenY || (wr ? wr.top + (clampedY + clampedH) * (wr.height / fc.height) : window.innerHeight / 2);
+  showSnipBar(targetX, targetY);
+
+  const badge = document.getElementById('snip-type-badge');
+  if (badge) {
+    if (extractedText) {
+      badge.textContent = 'Resim + Metin';
+      badge.style.display = 'inline-block';
+      badge.style.background = '#e0f2fe';
+      badge.style.color = '#0369a1';
+    } else {
+      badge.textContent = 'Resim';
+      badge.style.display = 'inline-block';
+      badge.style.background = '#f1f5f9';
+      badge.style.color = '#475569';
+    }
+  }
+
+  if (extractedText) {
+    showToast('Alıntı hazır (Görsel + Metin) ✓');
+  } else {
+    showToast('Alıntı hazır (Görsel) ✓');
+  }
+}
+
+function setupSelectToolSnip() {
+  if (!fc) return;
+  let startPtr = null;
+  let startClient = null;
+
+  fc.on('mouse:down', opt => {
+    if (currentTool !== 'select') return;
+    if (opt.target) return;
+    startPtr = fc.getPointer(opt.e);
+    startClient = { x: opt.e.clientX, y: opt.e.clientY };
+  });
+
+  fc.on('mouse:up', async opt => {
+    if (currentTool !== 'select' || !startPtr) return;
+    const endPtr = fc.getPointer(opt.e);
+    const cw = Math.abs(endPtr.x - startPtr.x);
+    const ch = Math.abs(endPtr.y - startPtr.y);
+    const cx = Math.min(endPtr.x, startPtr.x);
+    const cy = Math.min(endPtr.y, startPtr.y);
+    const screenX = opt.e.clientX || (startClient ? startClient.x : 0);
+    const screenY = opt.e.clientY || (startClient ? startClient.y : 0);
+    startPtr = null;
+    startClient = null;
+
+    if (cw < 15 || ch < 15) return;
+    await captureAndShowAreaSnip(cx, cy, cw, ch, screenX, screenY);
+  });
+}
+
 (function setupSnip() {
   const overlay = document.getElementById('snip-overlay');
   const sel     = document.getElementById('snip-sel');
@@ -3637,19 +3858,7 @@ function deactivateSnip() {
     const ch  = Math.min(Math.abs(ey - sy), fc.height - cy1);
 
     if (cw < 2 || ch < 2) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const renderMul = Math.max(dpr, 2);
-    const dataURL = fc.toDataURL({ format:'png', left:cx1, top:cy1, width:cw, height:ch, multiplier:renderMul });
-    let blob = null;
-    try {
-      blob = await (await fetch(dataURL)).blob();
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      showToast('Kırpıntı panoya kopyalandı ✓');
-    } catch (_) {}
-
-    _currentSnip = { dataURL, blob, cx: cx1, cy: cy1, cw, ch };
-    showSnipBar(ex, ey);
+    await captureAndShowAreaSnip(cx1, cy1, cw, ch, ex, ey);
   });
 })();
 
@@ -3679,9 +3888,12 @@ let _currentSnip = null;
 function showSnipBar(x, y) {
   const bar = document.getElementById('snip-action-bar');
   if (!bar) return;
-  const bw = 350, bh = 44;
-  const lx = Math.max(10, Math.min(x - bw / 2, window.innerWidth - bw - 12));
-  const ly = Math.max(10, Math.min(y + 12, window.innerHeight - bh - 12));
+  const bw = 390, bh = 46;
+  const lx = Math.max(10, Math.min(x - bw / 2, window.innerWidth - bw - 14));
+  let ly = y + 14;
+  if (ly + bh > window.innerHeight - 50) {
+    ly = Math.max(50, y - bh - 14);
+  }
   bar.style.left = lx + 'px';
   bar.style.top  = ly + 'px';
   bar.classList.add('show');
@@ -3690,6 +3902,8 @@ function showSnipBar(x, y) {
 function closeSnipBar() {
   const bar = document.getElementById('snip-action-bar');
   if (bar) bar.classList.remove('show');
+  const sel = document.getElementById('snip-sel');
+  if (sel) sel.style.display = 'none';
 }
 
 document.addEventListener('mousedown', e => {
@@ -3700,12 +3914,29 @@ document.addEventListener('mousedown', e => {
 });
 
 async function copyCurrentSnip() {
-  if (!_currentSnip?.dataURL) return;
+  if (!_currentSnip) return;
   try {
-    const blob = _currentSnip.blob || await (await fetch(_currentSnip.dataURL)).blob();
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-    showToast('Görsel panoya kopyalandı ✓');
+    const clipboardData = {};
+    if (_currentSnip.blob) {
+      clipboardData['image/png'] = _currentSnip.blob;
+    }
+    if (_currentSnip.text) {
+      clipboardData['text/plain'] = new Blob([_currentSnip.text], { type: 'text/plain' });
+    }
+
+    if (Object.keys(clipboardData).length > 0) {
+      await navigator.clipboard.write([new ClipboardItem(clipboardData)]);
+      showToast(_currentSnip.text ? 'Görsel ve metin panoya kopyalandı ✓' : 'Görsel panoya kopyalandı ✓');
+      return;
+    }
   } catch (err) {
+    if (_currentSnip.text) {
+      try {
+        await navigator.clipboard.writeText(_currentSnip.text);
+        showToast('Metin panoya kopyalandı ✓');
+        return;
+      } catch (_) {}
+    }
     showToast('Panoya kopyalanamadı');
   }
 }
@@ -3722,8 +3953,11 @@ function downloadCurrentSnip() {
 }
 
 function sendSnipTo(target) {
-  if (!_currentSnip?.dataURL) return;
-  sendSnippetToApp(target, { imageDataUrl: _currentSnip.dataURL });
+  if (!_currentSnip) return;
+  sendSnippetToApp(target, {
+    imageDataUrl: _currentSnip.dataURL,
+    text: _currentSnip.text || ''
+  });
   closeSnipBar();
 }
 
