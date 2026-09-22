@@ -23,6 +23,8 @@
   <meta name="twitter:image" content="icon-512.png">
 
   <!-- PWA / App -->
+  <meta name="app-version" content="1.2.0">
+  <meta name="app-build" content="20260922">
   <meta name="theme-color" content="#e94560">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -352,7 +354,7 @@
     #pdf-text-layer.text-selectable { z-index:20; }
     #pdf-text-layer.text-selectable span { pointer-events:auto; user-select:text; cursor:text; }
 
-    /* ── SNIP OVERLAY ───────────────────────────── */
+    /* ── SNIP OVERLAY & ACTION BAR ─────────────── */
     #snip-overlay {
       display:none; position:fixed; inset:0; z-index:50; cursor:crosshair;
     }
@@ -368,6 +370,40 @@
       background:rgba(0,0,0,0.18);
       pointer-events:none;
     }
+    #snip-action-bar {
+      display:none; position:fixed; z-index:515;
+      background:#fff; border:1px solid var(--border); border-radius:10px;
+      padding:6px 8px; gap:6px; align-items:center;
+      box-shadow:0 8px 24px rgba(0,0,0,0.18);
+    }
+    #snip-action-bar.show { display:flex; }
+    .snip-act-label { font-size:11px; font-weight:700; color:var(--muted); padding:0 4px; }
+    .snip-act-btn {
+      padding:5px 9px; border:1px solid var(--border); border-radius:6px;
+      background:#f8fafc; color:var(--text); font-size:12px; font-weight:600;
+      cursor:pointer; display:flex; align-items:center; gap:5px; transition:all .15s;
+    }
+    .snip-act-btn:hover { background:var(--hover); }
+    .snip-act-btn.act-copy { background:#eff6ff; color:#2563eb; border-color:#bfdbfe; }
+    .snip-act-btn.act-copy:hover { background:#dbeafe; }
+    .snip-act-close {
+      width:22px; height:22px; border-radius:50%; border:none; background:transparent;
+      cursor:pointer; color:var(--muted); font-size:14px; display:flex; align-items:center; justify-content:center;
+    }
+    .snip-act-close:hover { background:var(--hover); }
+
+    /* ── TRANSLATE POPUP EXPORT ROW ─────────────── */
+    #tp-export-row {
+      display:flex; align-items:center; gap:5px; border-top:1px solid var(--border);
+      padding-top:7px; margin-top:3px; flex-wrap:wrap;
+    }
+    .tp-export-label { font-size:11px; font-weight:600; color:var(--muted); margin-right:2px; }
+    .tp-export-btn {
+      padding:3px 8px; border:1px solid var(--border); border-radius:5px;
+      font-size:11px; font-weight:600; cursor:pointer; background:#f8fafc; color:var(--text);
+      display:flex; align-items:center; gap:4px; transition:all .15s;
+    }
+    .tp-export-btn:hover { background:var(--hover); border-color:#94a3b8; }
 
     /* ── TRANSLATE POPUP ────────────────────────── */
     #translate-popup {
@@ -719,10 +755,180 @@
       .t-btn::after, .h-btn::after { display:none !important; }
     }
 
+    /* ── APP UPDATE PROMPT (wiz3 style) ──────────── */
+    .update-prompt-card {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 250;
+      width: 360px;
+      max-width: calc(100vw - 32px);
+      background: #ffffff;
+      border: 2px solid var(--accent);
+      border-radius: 16px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+      overflow: hidden;
+      animation: up-slide-in 0.28s cubic-bezier(0.16, 1, 0.3, 1), up-pulse-glow 3.8s ease-in-out infinite;
+    }
+
+    @keyframes up-slide-in {
+      from { opacity: 0; transform: translateY(20px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes up-pulse-glow {
+      0%, 72%, 100% {
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+        border-color: var(--accent);
+      }
+      84% {
+        box-shadow: 0 16px 44px rgba(233, 69, 96, 0.45), 0 0 0 4px rgba(233, 69, 96, 0.18);
+        border-color: #ff5270;
+      }
+    }
+
+    .up-card-head {
+      background: var(--accent);
+      color: #ffffff;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .up-head-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+    }
+
+    .up-head-title svg {
+      flex-shrink: 0;
+    }
+
+    .up-close-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #ffffff;
+      border-radius: 6px;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .up-close-btn:hover {
+      background: rgba(255, 255, 255, 0.35);
+    }
+
+    .up-card-body {
+      padding: 13px 15px 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .up-text {
+      font-size: 12.5px;
+      color: #2b2d42;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .up-version-tag {
+      font-size: 11px;
+      color: #718096;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .up-version-tag code {
+      background: #edf2f7;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 10.5px;
+      color: #4a5568;
+    }
+
+    .up-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 5px;
+    }
+
+    .up-btn {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 13px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: none;
+      font-family: inherit;
+    }
+
+    .up-btn-later {
+      background: transparent;
+      color: #64748b;
+      border: 1px solid #cbd5e1;
+    }
+
+    .up-btn-later:hover {
+      background: #f1f5f9;
+      color: #1e293b;
+    }
+
+    .up-btn-primary {
+      background: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(233, 69, 96, 0.32);
+    }
+
+    .up-btn-primary:hover {
+      background: #d83a54;
+      box-shadow: 0 3px 12px rgba(233, 69, 96, 0.42);
+    }
+
+    .up-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .up-spin {
+      animation: up-spin-anim 0.85s linear infinite;
+    }
+
+    @keyframes up-spin-anim {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
     @media (max-width: 480px) {
       .h-btn.primary span, .h-btn.danger span { display:none; }
       .nav-btn { padding:5px 12px; font-size:12px; }
       #page-info { min-width:60px; font-size:12px; }
+      .update-prompt-card {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        width: auto;
+      }
     }
   </style>
 </head>
@@ -1069,6 +1275,19 @@
           </a>
         </div>
       </div>
+      <div class="about-section" style="border-top:1px solid var(--border);padding-top:16px;margin-top:18px;">
+        <div class="about-section-title" data-i18n="about-version-title">Uygulama Sürümü</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fafafa;padding:10px 14px;border:1px solid var(--border);border-radius:10px;">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--text);">v1.2.0 <span style="font-size:10.5px;font-weight:400;color:var(--muted);font-family:monospace;">(Build 20260922)</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="about-update-status" data-i18n="about-up-to-date">En son sürümü kullanıyorsunuz</div>
+          </div>
+          <button id="about-check-update-btn" class="up-btn up-btn-primary" style="padding:6px 12px;font-size:11.5px;" onclick="checkAppUpdateManual()">
+            <svg id="about-update-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            <span id="about-check-btn-text" data-i18n="about-check-btn">Denetle</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1112,9 +1331,33 @@
   </div>
 </div>
 
-<!-- ── SNIP OVERLAY ──────────────────────────────────────── -->
+<!-- ── SNIP OVERLAY & ACTION BAR ───────────────────────── -->
 <div id="snip-overlay"></div>
 <div id="snip-sel"></div>
+<div id="snip-action-bar">
+  <span class="snip-act-label">Gönder:</span>
+  <button class="snip-act-btn act-copy" onclick="copyCurrentSnip()" title="Panoya Kopyala">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    <span>Kopyala</span>
+  </button>
+  <button class="snip-act-btn act-not" onclick="sendSnipTo('not')" title="Not'a Gönder (not.drtr.uk)">
+    <span>📝</span>
+    <span>Not</span>
+  </button>
+  <button class="snip-act-btn act-cardi" onclick="sendSnipTo('cardi')" title="Cardi'ye Gönder (cardi.drtr.uk)">
+    <span>🫀</span>
+    <span>Cardi</span>
+  </button>
+  <button class="snip-act-btn act-read" onclick="sendSnipTo('webread')" title="WebRead'e Gönder (read.drtr.uk)">
+    <span>📖</span>
+    <span>WebRead</span>
+  </button>
+  <button class="snip-act-btn" onclick="downloadCurrentSnip()" title="Resim Olarak İndir">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <span>İndir</span>
+  </button>
+  <button class="snip-act-close" onclick="closeSnipBar()" title="Kapat">✕</button>
+</div>
 
 <!-- ── TRANSLATE POPUP ───────────────────────────────────── -->
 <div id="translate-popup">
@@ -1130,6 +1373,12 @@
     <button class="tp-lang-btn" onclick="doInlineTranslate('en','tr')">EN → TR</button>
     <button class="tp-lang-btn" onclick="doInlineTranslate('tr','en')">TR → EN</button>
   </div>
+  <div id="tp-export-row">
+    <span class="tp-export-label">Alıntıyı Gönder:</span>
+    <button class="tp-export-btn" title="Not'a Gönder (not.drtr.uk)" onclick="sendQuoteTo('not')">📝 Not</button>
+    <button class="tp-export-btn" title="Cardi'ye Gönder (cardi.drtr.uk)" onclick="sendQuoteTo('cardi')">🫀 Cardi</button>
+    <button class="tp-export-btn" title="WebRead Sözlüğe Ekle (read.drtr.uk)" onclick="sendQuoteTo('webread')">📖 WebRead</button>
+  </div>
 </div>
 
 <div id="text-context-menu">
@@ -1139,6 +1388,19 @@
       <path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>
     </svg>
     <span data-i18n="textctx-translate">Çevir</span>
+  </button>
+  <div style="height:1px;background:var(--border);margin:3px 0;"></div>
+  <button type="button" data-text-ctx="send-not" onclick="sendTextCtxTo('not')">
+    <span>📝</span>
+    <span>Not'a Gönder</span>
+  </button>
+  <button type="button" data-text-ctx="send-cardi" onclick="sendTextCtxTo('cardi')">
+    <span>🫀</span>
+    <span>Cardi'ye Gönder</span>
+  </button>
+  <button type="button" data-text-ctx="send-webread" onclick="sendTextCtxTo('webread')">
+    <span>📖</span>
+    <span>WebRead'e Gönder</span>
   </button>
 </div>
 
@@ -1180,6 +1442,30 @@
   <button id="search-close-btn" onclick="closeSearch()" title="Kapat (Esc)">✕</button>
 </div>
 
+<!-- ── APP UPDATE PROMPT (wiz3 style) ────────────────────── -->
+<div id="update-prompt" class="update-prompt-card" hidden role="status" aria-live="polite">
+  <div class="up-card-head">
+    <div class="up-head-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="up-title" data-i18n="up-title">Yeni sürüm hazır</span>
+    </div>
+    <button id="up-close" class="up-close-btn" type="button" title="Kapat" aria-label="Kapat" onclick="dismissUpdatePrompt()">✕</button>
+  </div>
+  <div class="up-card-body">
+    <p id="up-text" class="up-text" data-i18n="up-desc">PDF Annotator güncellendi. Bu sekme eski sürümü çalıştırıyor olabilir; yeni özellikleri almak için yenileyin.</p>
+    <p class="up-version-tag">
+      <span data-i18n="up-version-label">Mevcut</span>: <code id="up-version-val">v1.2.0 (Build 20260922)</code>
+    </p>
+    <div class="up-actions">
+      <button id="up-later" class="up-btn up-btn-later" type="button" data-i18n="up-later" onclick="dismissUpdatePrompt()">Sonra</button>
+      <button id="up-reload" class="up-btn up-btn-primary" type="button" onclick="triggerAppUpdate()">
+        <svg id="up-reload-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        <span id="up-reload-text" data-i18n="up-reload">Güncellemek için yenile</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ── TOAST ─────────────────────────────────────────────── -->
 <div id="toast"></div>
 
@@ -1191,13 +1477,195 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 /* ═══════════════════════════════════════════════════════════
-   SERVICE WORKER (PWA)
+   SERVICE WORKER & APP UPDATE PROMPT (wiz3 style)
 ═══════════════════════════════════════════════════════════ */
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+let _swRegistration = null;
+let _updateReloading = false;
+let _hasController = false;
+let _updatePromptShown = false;
+
+function showUpdatePrompt(info) {
+  _updatePromptShown = true;
+  const prompt = document.getElementById('update-prompt');
+  if (!prompt) return;
+
+  if (info && info.version) {
+    const valEl = document.getElementById('up-version-val');
+    if (valEl) valEl.textContent = `v${info.version}${info.build ? ' (Build ' + info.build + ')' : ''}`;
+  }
+
+  const status = document.getElementById('about-update-status');
+  if (status) status.textContent = I18N[_lang]['about-has-update'] || 'Yeni sürüm mevcut!';
+
+  prompt.hidden = false;
+}
+
+function dismissUpdatePrompt() {
+  const prompt = document.getElementById('update-prompt');
+  if (prompt) prompt.hidden = true;
+}
+
+async function triggerAppUpdate() {
+  if (_updateReloading) return;
+  _updateReloading = true;
+
+  const btn = document.getElementById('up-reload');
+  const txt = document.getElementById('up-reload-text');
+  const icon = document.getElementById('up-reload-icon');
+  if (btn) btn.disabled = true;
+  if (icon) icon.classList.add('up-spin');
+  if (txt) txt.textContent = I18N[_lang]['up-reloading'] || 'Yenileniyor…';
+
+  const hardReload = () => {
+    const url = new URL(location.href);
+    url.searchParams.set('_v', Date.now().toString(36));
+    location.replace(url.toString());
+  };
+
+  const waiting = _swRegistration && _swRegistration.waiting;
+  if (waiting) {
+    try {
+      waiting.postMessage({ type: 'SKIP_WAITING' });
+    } catch (_) {}
+  }
+
+  // Grace period fallback (1500ms like wiz3 / webread)
+  setTimeout(async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = (await navigator.serviceWorker.getRegistrations()) || [];
+        await Promise.all(regs.map(r => r.unregister().catch(() => false)));
+      }
+      if (typeof window !== 'undefined' && window.caches) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k).catch(() => false)));
+      }
+    } catch (_) {}
+    hardReload();
+  }, 1500);
+}
+
+async function checkVersionJsonFallback() {
+  try {
+    const res = await fetch('./version.json', { cache: 'no-store' });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const metaBuild = document.querySelector('meta[name="app-build"]')?.getAttribute('content');
+    const metaVer = document.querySelector('meta[name="app-version"]')?.getAttribute('content');
+    if (data && ((data.build && metaBuild && data.build !== metaBuild) || (data.version && metaVer && data.version !== metaVer))) {
+      showUpdatePrompt({ version: data.version, build: data.build });
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+function checkAppUpdateManual() {
+  const btn = document.getElementById('about-check-update-btn');
+  const txt = document.getElementById('about-check-btn-text');
+  const icon = document.getElementById('about-update-icon');
+  const status = document.getElementById('about-update-status');
+
+  if (btn) btn.disabled = true;
+  if (icon) icon.classList.add('up-spin');
+  if (txt) txt.textContent = I18N[_lang]['about-checking'] || 'Denetleniyor…';
+  if (status) status.textContent = I18N[_lang]['about-checking'] || 'Denetleniyor…';
+
+  const finish = (hasUpdate) => {
+    if (btn) btn.disabled = false;
+    if (icon) icon.classList.remove('up-spin');
+    if (txt) txt.textContent = I18N[_lang]['about-check-btn'] || 'Denetle';
+
+    if (hasUpdate) {
+      if (status) status.textContent = I18N[_lang]['about-has-update'] || 'Yeni sürüm mevcut!';
+      showUpdatePrompt();
+    } else {
+      if (status) status.textContent = I18N[_lang]['about-up-to-date'] || 'En son sürümü kullanıyorsunuz';
+      showToast(I18N[_lang]['about-up-to-date'] || 'En son sürümü kullanıyorsunuz ✓');
+    }
+  };
+
+  if (_swRegistration) {
+    _swRegistration.update().then(() => {
+      setTimeout(() => {
+        if (_swRegistration && _swRegistration.waiting) {
+          finish(true);
+        } else {
+          checkVersionJsonFallback().then(hasUpdate => finish(hasUpdate));
+        }
+      }, 800);
+    }).catch(() => {
+      checkVersionJsonFallback().then(hasUpdate => finish(hasUpdate));
+    });
+  } else {
+    checkVersionJsonFallback().then(hasUpdate => finish(hasUpdate));
+  }
+}
+
+function watchRegistration(reg) {
+  if (reg.waiting && navigator.serviceWorker.controller) {
+    showUpdatePrompt();
+  }
+
+  reg.addEventListener('updatefound', () => {
+    const newWorker = reg.installing;
+    if (!newWorker) return;
+    newWorker.addEventListener('statechange', () => {
+      if (newWorker.state === 'installed') {
+        if (navigator.serviceWorker.controller) {
+          showUpdatePrompt();
+        }
+      }
+    });
   });
 }
+
+function initServiceWorkerUpdater() {
+  if (!('serviceWorker' in navigator)) {
+    checkVersionJsonFallback();
+    setInterval(checkVersionJsonFallback, 5 * 60 * 1000);
+    return;
+  }
+
+  _hasController = !!navigator.serviceWorker.controller;
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (_updateReloading || _hasController) {
+      window.location.reload();
+    }
+  });
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      _swRegistration = reg;
+      watchRegistration(reg);
+
+      setInterval(() => {
+        reg.update().catch(() => {});
+      }, 60000);
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          reg.update().catch(() => {});
+          checkVersionJsonFallback();
+        }
+      });
+      window.addEventListener('focus', () => {
+        reg.update().catch(() => {});
+      });
+    }).catch(err => {
+      console.warn('[sw] register failed', err);
+      checkVersionJsonFallback();
+      setInterval(checkVersionJsonFallback, 5 * 60 * 1000);
+    });
+  });
+}
+
+initServiceWorkerUpdater();
+
+// Debug / testing hooks
+window.__showUpdatePrompt = showUpdatePrompt;
+window.__checkAppUpdate = checkAppUpdateManual;
 
 /* ═══════════════════════════════════════════════════════════
    I18N — TR / EN
@@ -1224,6 +1692,17 @@ const I18N = {
     'textctx-translate':'Çevir',
     'about-tagline':'PDF düzenleyici, açıklama aracı ve filigran temizleyici',
     'about-rights':'Tüm hakları saklıdır.','about-apps':'Diğer Uygulamalar',
+    'about-version-title':'Uygulama Sürümü',
+    'about-up-to-date':'En son sürümü kullanıyorsunuz',
+    'about-check-btn':'Denetle',
+    'about-checking':'Denetleniyor…',
+    'about-has-update':'Yeni sürüm mevcut!',
+    'up-title':'Yeni sürüm hazır',
+    'up-desc':'PDF Annotator güncellendi. Bu sekme eski sürümü çalıştırıyor olabilir; yeni özellikleri almak için yenileyin.',
+    'up-version-label':'Mevcut',
+    'up-later':'Sonra',
+    'up-reload':'Güncellemek için yenile',
+    'up-reloading':'Yenileniyor…',
     'app-biostat':'Biyoistatistik Uygulaması','app-flow':'Akademik Akış Tasarımcısı',
     'app-dicom':'DICOM Görüntüleyici','app-notes':'Not Uygulaması',
     'app-portal':'drtr.uk — Tüm Araçlar',
@@ -1249,6 +1728,17 @@ const I18N = {
     'textctx-translate':'Translate',
     'about-tagline':'PDF editor, annotator and watermark remover',
     'about-rights':'All rights reserved.','about-apps':'Other Apps',
+    'about-version-title':'App Version',
+    'about-up-to-date':'You are running the latest version',
+    'about-check-btn':'Check',
+    'about-checking':'Checking…',
+    'about-has-update':'New version available!',
+    'up-title':'New version ready',
+    'up-desc':'PDF Annotator has been updated. This tab may still be running the old version; reload to pick up new features.',
+    'up-version-label':'Current',
+    'up-later':'Later',
+    'up-reload':'Reload to update',
+    'up-reloading':'Reloading…',
     'app-biostat':'Biostatistics App','app-flow':'Academic Flow Designer',
     'app-dicom':'DICOM Viewer','app-notes':'Notes App',
     'app-portal':'drtr.uk — All Tools',
@@ -3114,21 +3604,231 @@ function deactivateSnip() {
 
     if (cw < 2 || ch < 2) return;
 
+    const dpr = window.devicePixelRatio || 1;
+    const renderMul = Math.max(dpr, 2);
+    const dataURL = fc.toDataURL({ format:'png', left:cx1, top:cy1, width:cw, height:ch, multiplier:renderMul });
+    let blob = null;
     try {
-      const dataURL = fc.toDataURL({ format:'png', left:cx1, top:cy1, width:cw, height:ch, multiplier:1 });
-      const blob    = await (await fetch(dataURL)).blob();
+      blob = await (await fetch(dataURL)).blob();
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      showToast('Seçilen alan panoya kopyalandı ✓');
-    } catch {
-      // Fallback: download
-      const link = document.createElement('a');
-      link.download = 'snip.png';
-      link.href = fc.toDataURL({ format:'png', left:cx1, top:cy1, width:cw, height:ch });
-      link.click();
-      showToast('PNG olarak indirildi');
-    }
+      showToast('Kırpıntı panoya kopyalandı ✓');
+    } catch (_) {}
+
+    _currentSnip = { dataURL, blob, cx: cx1, cy: cy1, cw, ch };
+    showSnipBar(ex, ey);
   });
 })();
+
+/* ═══════════════════════════════════════════════════════════
+   CROSS-APP SNIPPET & QUOTE SHARING (Not, Cardi, WebRead)
+═══════════════════════════════════════════════════════════ */
+const APP_ENDPOINTS = {
+  not: {
+    name: 'Not',
+    origin: 'https://not.drtr.uk',
+    url: 'https://not.drtr.uk/'
+  },
+  cardi: {
+    name: 'Cardi',
+    origin: 'https://cardi.drtr.uk',
+    url: 'https://cardi.drtr.uk/'
+  },
+  webread: {
+    name: 'WebRead',
+    origin: 'https://read.drtr.uk',
+    url: 'https://read.drtr.uk/'
+  }
+};
+
+let _currentSnip = null;
+
+function showSnipBar(x, y) {
+  const bar = document.getElementById('snip-action-bar');
+  if (!bar) return;
+  const bw = 350, bh = 44;
+  const lx = Math.max(10, Math.min(x - bw / 2, window.innerWidth - bw - 12));
+  const ly = Math.max(10, Math.min(y + 12, window.innerHeight - bh - 12));
+  bar.style.left = lx + 'px';
+  bar.style.top  = ly + 'px';
+  bar.classList.add('show');
+}
+
+function closeSnipBar() {
+  const bar = document.getElementById('snip-action-bar');
+  if (bar) bar.classList.remove('show');
+}
+
+document.addEventListener('mousedown', e => {
+  const bar = document.getElementById('snip-action-bar');
+  if (bar && bar.classList.contains('show') && !bar.contains(e.target)) {
+    closeSnipBar();
+  }
+});
+
+async function copyCurrentSnip() {
+  if (!_currentSnip?.dataURL) return;
+  try {
+    const blob = _currentSnip.blob || await (await fetch(_currentSnip.dataURL)).blob();
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    showToast('Görsel panoya kopyalandı ✓');
+  } catch (err) {
+    showToast('Panoya kopyalanamadı');
+  }
+}
+
+function downloadCurrentSnip() {
+  if (!_currentSnip?.dataURL) return;
+  const meta = getDocumentMetadata();
+  const safeName = (meta.title || 'snip').replace(/[\\/:*?"<>|]+/g, '_');
+  const link = document.createElement('a');
+  link.download = `${safeName}_sayfa${meta.page}_alinti.png`;
+  link.href = _currentSnip.dataURL;
+  link.click();
+  showToast('PNG olarak indirildi');
+}
+
+function sendSnipTo(target) {
+  if (!_currentSnip?.dataURL) return;
+  sendSnippetToApp(target, { imageDataUrl: _currentSnip.dataURL });
+  closeSnipBar();
+}
+
+function sendQuoteTo(target) {
+  const text = _lastTranslateText || (window.getSelection()?.toString() || '').trim();
+  if (!text) { showToast('Alıntılanacak metin bulunamadı'); return; }
+  const translation = document.getElementById('tp-result')?.textContent || '';
+  sendSnippetToApp(target, { text, translation });
+}
+
+function sendTextCtxTo(target) {
+  if (!_textCtxObject) return;
+  const text = getTextObjectTranslateText(_textCtxObject);
+  if (!text) return;
+  hideTextContextMenu();
+  sendSnippetToApp(target, { text });
+}
+
+function getDocumentMetadata() {
+  const fileName = (document.getElementById('file-name')?.textContent || 'Belge')
+    .replace(/^—\s*|\s*—$/g, '')
+    .trim();
+  const page = currentPage || 1;
+  return {
+    title: fileName || 'PDF Belgesi',
+    page: page,
+    url: window.location.href
+  };
+}
+
+function sendSnippetToApp(targetKey, snippet) {
+  const target = APP_ENDPOINTS[targetKey];
+  if (!target) return;
+
+  const meta = getDocumentMetadata();
+  const title = snippet.title || meta.title;
+  const page = snippet.page || meta.page;
+  const citation = `\n\n— [${title}, s. ${page}]`;
+  const textWithCitation = snippet.text ? snippet.text.trim() + citation : '';
+
+  // Prepare fallback query URL
+  const u = new URL(target.url);
+  if (targetKey === 'not') {
+    u.searchParams.set('title', `${title} (s. ${page})`);
+    if (textWithCitation) u.searchParams.set('text', textWithCitation);
+    u.searchParams.set('source', 'pdf-editor');
+  } else if (targetKey === 'cardi') {
+    u.searchParams.set('action', 'clip');
+    u.searchParams.set('title', `${title} (s. ${page})`);
+    if (textWithCitation) u.searchParams.set('text', textWithCitation);
+    u.searchParams.set('source', 'pdf-editor');
+  } else if (targetKey === 'webread') {
+    const rawText = snippet.text ? snippet.text.trim() : '';
+    const word = rawText.length <= 60 ? rawText : rawText.slice(0, 50) + '…';
+    u.searchParams.set('word', word);
+    if (rawText.length > 60 || snippet.translation) {
+      u.searchParams.set('example', rawText);
+    }
+    if (snippet.translation && snippet.translation !== 'Çevriliyor…') {
+      u.searchParams.set('translation', snippet.translation);
+    }
+    u.searchParams.set('title', `${title} (s. ${page})`);
+    u.searchParams.set('source', 'pdf-editor');
+  }
+
+  const hasImage = !!snippet.imageDataUrl;
+  const win = window.open(hasImage ? target.url : u.toString(), '_blank');
+
+  if (!win) {
+    showToast('Açılır pencere engellendi. Lütfen izin verin.');
+    return;
+  }
+
+  showToast(`${target.name} açılıyor…`);
+
+  const payload = {
+    kind: hasImage ? 'image' : 'text',
+    title: `${title} (Sayfa ${page})`,
+    text: textWithCitation || (hasImage ? `[Alıntı Görseli - ${title}, s. ${page}]` : ''),
+    word: snippet.text ? (snippet.text.length <= 60 ? snippet.text.trim() : snippet.text.trim().slice(0, 50)) : '',
+    translation: (snippet.translation && snippet.translation !== 'Çevriliyor…') ? snippet.translation : '',
+    example: snippet.text ? snippet.text.trim() : '',
+    imageDataUrl: snippet.imageDataUrl || '',
+    screenshotDataUrl: snippet.imageDataUrl || '',
+    sourceUrl: window.location.href,
+    sourceTitle: `${title} (s. ${page})`
+  };
+
+  const requestId = `clip-pdf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  let attempts = 0;
+  const maxAttempts = 16;
+  let acked = false;
+
+  const timer = setInterval(() => {
+    attempts++;
+    if (acked || attempts > maxAttempts || win.closed) {
+      clearInterval(timer);
+      return;
+    }
+    try {
+      win.postMessage({
+        type: 'clip',
+        source: 'pdf-editor',
+        requestId: requestId,
+        payload: payload,
+        ...payload
+      }, target.origin);
+    } catch (_) {}
+  }, 500);
+
+  const ackListener = (event) => {
+    if (event.origin !== target.origin) return;
+    const data = event.data;
+    if (data && (data.type === 'clip-ack' || data.type === 'clip-ready')) {
+      if (data.type === 'clip-ready') {
+        try {
+          win.postMessage({
+            type: 'clip',
+            source: 'pdf-editor',
+            requestId: requestId,
+            payload: payload,
+            ...payload
+          }, target.origin);
+        } catch (_) {}
+      } else if (data.type === 'clip-ack') {
+        acked = true;
+        clearInterval(timer);
+        window.removeEventListener('message', ackListener);
+        showToast(`${target.name}'e aktarıldı ✓`);
+      }
+    }
+  };
+  window.addEventListener('message', ackListener);
+
+  setTimeout(() => {
+    window.removeEventListener('message', ackListener);
+    clearInterval(timer);
+  }, 10000);
+}
 
 /* ═══════════════════════════════════════════════════════════
    TOAST

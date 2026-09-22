@@ -18,3 +18,7 @@
 
 # Logs
 *.log
+
+# Local temporary clone
+repo/
+

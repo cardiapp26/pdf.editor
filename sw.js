@@ -1,4 +1,4 @@
-const CACHE = 'pdf-annotator-v5';
+const CACHE = 'pdf-annotator-v7';
 const LOCAL = [
   './',
   './index.html',
@@ -9,7 +9,15 @@ const LOCAL = [
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(LOCAL).catch(() => {})));
-  self.skipWaiting();
+  // Do not unconditionally skipWaiting here so the update prompt can display
+  // and activate only when confirmed by the user.
+});
+
+// The page requests immediate activation when the user clicks 'Update'
+self.addEventListener('message', e => {
+  if (e.data && (e.data.type === 'SKIP_WAITING' || e.data === 'skipWaiting')) {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', e => {
@@ -23,6 +31,20 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
+
+  // version.json is the update probe: always fetch fresh from network
+  if (url.pathname.endsWith('/version.json')) {
+    e.respondWith(
+      fetch(e.request, { cache: 'no-store' }).catch(() => new Response('', { status: 504 }))
+    );
+    return;
+  }
+
+  // Force cache bypass on hard reload
+  if (url.searchParams.has('_v') || url.searchParams.has('_r')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
 
   /* local files: cache-first */
   if (url.origin === location.origin) {
