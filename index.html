@@ -23,8 +23,8 @@
   <meta name="twitter:image" content="icon-512.png">
 
   <!-- PWA / App -->
-  <meta name="app-version" content="1.2.4">
-  <meta name="app-build" content="20260923-1028">
+  <meta name="app-version" content="1.2.5">
+  <meta name="app-build" content="20260923-1033">
   <meta name="theme-color" content="#e94560">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2383,6 +2383,7 @@ async function renderPage(num) {
   } else {
     fc.setWidth(canvasW); fc.setHeight(canvasH); fc.clear();
   }
+  fc.calcOffset();
 
   await new Promise(resolve => {
     fabric.Image.fromURL(bgUrl, img => {
@@ -2654,6 +2655,19 @@ function autoFitTextObject(t) {
   }
 }
 
+function getCanvasPointer(e) {
+  if (!fc) return { x: 0, y: 0 };
+  const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+  const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+  const canvasEl = fc.upperCanvasEl || fc.lowerCanvasEl;
+  if (!canvasEl) return fc.getPointer(e);
+  const rect = canvasEl.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return fc.getPointer(e);
+  const x = Math.max(0, Math.min(fc.width, (clientX - rect.left) * (fc.width / rect.width)));
+  const y = Math.max(0, Math.min(fc.height, (clientY - rect.top) * (fc.height / rect.height)));
+  return { x, y };
+}
+
 function setupText() {
   fc.defaultCursor = 'text';
   let _skipNextCreate = false; // flag: editing just exited, skip creating new box
@@ -2669,11 +2683,15 @@ function setupText() {
     if (opt.target) return; // other objects – ignore
     if (_skipNextCreate) { _skipNextCreate = false; return; }
 
-    const p   = fc.getPointer(opt.e);
+    const p   = getCanvasPointer(opt.e);
     const sz  = Math.max(currentWidth * 5, 16);
     const col = document.getElementById('tf-color')?.value || currentColor;
+    // Align text vertically with user's click point so baseline sits naturally on the line clicked
+    const textTop = Math.max(0, Math.round(p.y - (sz * 0.55)));
+    const textLeft = Math.max(0, Math.round(p.x));
+
     const t   = new fabric.IText('', {
-      left: p.x, top: p.y,
+      left: textLeft, top: textTop,
       fontSize: sz, fill: col, opacity: currentOpacity,
       fontFamily: document.getElementById('tf-family')?.value || 'Arial',
       selectable: true, evented: true,
@@ -2708,6 +2726,14 @@ function setupText() {
 }
 
 function setupFabricListeners() {
+  const scrollContainer = document.getElementById('canvas-scroll');
+  if (scrollContainer && !scrollContainer._hasFcScrollListener) {
+    scrollContainer._hasFcScrollListener = true;
+    scrollContainer.addEventListener('scroll', () => {
+      if (fc) fc.calcOffset();
+    }, { passive: true });
+  }
+
   fc.on('path:created',    () => pushUndo());
   fc.on('object:modified', e => {
     const o = e.target;
