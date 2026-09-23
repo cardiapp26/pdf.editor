@@ -23,8 +23,8 @@
   <meta name="twitter:image" content="icon-512.png">
 
   <!-- PWA / App -->
-  <meta name="app-version" content="1.2.8">
-  <meta name="app-build" content="20260923-1215">
+  <meta name="app-version" content="1.2.9">
+  <meta name="app-build" content="20260923-1405">
   <meta name="theme-color" content="#e94560">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1970,6 +1970,12 @@ let pageAnnotations = {};
 let undoStack = [], redoStack = [];
 let isShapeDrawing = false, shapeOrigin = null, tempShape = null;
 
+let _toolPressTimer = null;
+let _toolLongPressTriggered = false;
+let _toolColorMenuOpen = false;
+let _penMenuOpen = false;
+let _activeColorMenuTool = 'pen';
+
 /* page descriptor:
   { type:'pdf'|'image', doc, pdfPageNum, imageUrl, width, height, thumbnail } */
 
@@ -2026,12 +2032,6 @@ function hexToRgba(hex, alpha) {
 /* ═══════════════════════════════════════════════════════════
    TOOL QUICK COLOR & SIZE MENU (Hold or Click on Active Tool)
 ═══════════════════════════════════════════════════════════ */
-let _toolPressTimer = null;
-let _toolLongPressTriggered = false;
-let _toolColorMenuOpen = false;
-let _penMenuOpen = false;
-let _activeColorMenuTool = 'pen';
-
 function buildToolQuickMenu() {
   const container = document.getElementById('pq-palette');
   if (!container) return;
@@ -2313,15 +2313,32 @@ function setOpacity(v) {
 /* ═══════════════════════════════════════════════════════════
    FILE LOADING (main PDF)
 ═══════════════════════════════════════════════════════════ */
-document.getElementById('file-input').addEventListener('change', e => {
-  const f = e.target.files[0]; if (f) loadFile(f); e.target.value = '';
+document.getElementById('file-input').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  try {
+    await loadFile(f);
+  } catch (err) {
+    console.error('loadFile error:', err);
+    showToast(_lang === 'tr' ? 'Dosya açılamadı: ' + (err.message || 'Hata') : 'Failed to open file');
+  } finally {
+    e.target.value = '';
+  }
 });
 function onDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('drag-over'); }
 function onDragLeave() { document.getElementById('drop-zone').classList.remove('drag-over'); }
-function onDrop(e) {
-  e.preventDefault(); document.getElementById('drop-zone').classList.remove('drag-over');
-  const f = e.dataTransfer.files[0];
-  if (f) loadFile(f);
+async function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) {
+    try {
+      await loadFile(f);
+    } catch (err) {
+      console.error('onDrop loadFile error:', err);
+      showToast(_lang === 'tr' ? 'Dosya açılamadı: ' + (err.message || 'Hata') : 'Failed to open file');
+    }
+  }
 }
 
 async function loadFile(file) {
@@ -2560,10 +2577,10 @@ async function _loadPdfFile(file) {
   // Reset search state for new file
   _searchQuery = ''; _searchResults = []; _searchCurrent = -1;
   if (_searchOpen) { closeSearch(); }
-  fitWidthScale();
-  await renderPage(1);
   document.getElementById('drop-zone').style.display = 'none';
   document.getElementById('canvas-wrapper').style.display = 'block';
+  fitWidthScale();
+  await renderPage(1);
   updateNav();
   buildThumbTray();
   generateThumbnails();
@@ -2584,10 +2601,10 @@ async function _loadImageFile(file) {
   currentPage = 1;
   _searchQuery = ''; _searchResults = []; _searchCurrent = -1;
   if (_searchOpen) closeSearch();
-  fitWidthScale();
-  await renderPage(1);
   document.getElementById('drop-zone').style.display = 'none';
   document.getElementById('canvas-wrapper').style.display = 'block';
+  fitWidthScale();
+  await renderPage(1);
   updateNav(); buildThumbTray(); generateThumbnails();
 }
 
@@ -3875,7 +3892,11 @@ async function renderTextLayer(pdfPage, viewport) {
   try {
     const textContent = await pdfPage.getTextContent();
     const task = pdfjsLib.renderTextLayer({
-      textContent, container: tl, viewport, textDivs: []
+      textContentSource: textContent,
+      textContent,
+      container: tl,
+      viewport,
+      textDivs: []
     });
     if (task && task.promise) await task.promise;
     else if (task && typeof task.then === 'function') await task;
