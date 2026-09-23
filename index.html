@@ -23,7 +23,7 @@
   <meta name="twitter:image" content="icon-512.png">
 
   <!-- PWA / App -->
-  <meta name="app-version" content="1.2.5">
+  <meta name="app-version" content="1.2.6">
   <meta name="app-build" content="20260923-1033">
   <meta name="theme-color" content="#e94560">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1532,6 +1532,10 @@
          onchange="applyTextProp('fontSize', Math.max(6,+this.value))"
          oninput="applyTextProp('fontSize', Math.max(6,+this.value))">
   <div class="tf-sep"></div>
+  <button class="tf-btn" id="tf-edit" title="Metni Düzenle / Yaz" onclick="startEditText()" style="font-size:11px;padding:0 6px;gap:3px;display:inline-flex;align-items:center;">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    <span style="font-weight:600">Düzenle</span>
+  </button>
   <button class="tf-btn" id="tf-bold"   title="Kalın"        onclick="toggleTextFmt('bold')">B</button>
   <button class="tf-btn" id="tf-italic" title="İtalik"       onclick="toggleTextFmt('italic')" style="font-style:italic">I</button>
   <button class="tf-btn" id="tf-under"  title="Altı çizili"  onclick="toggleTextFmt('underline')" style="text-decoration:underline">U</button>
@@ -2220,22 +2224,227 @@ async function loadFile(file) {
   return _loadPdfFile(file);
 }
 
+/* ═══════════════════════════════════════════════════════════
+   INDEXEDDB PERSISTENCE & EMBEDDED PROJECT ATTACHMENT HELPERS
+═══════════════════════════════════════════════════════════ */
+const DB_NAME = 'pdf_editor_storage';
+const DB_VERSION = 1;
+const STORE_NAME = 'projects';
+
+function openProjectDB() {
+  return new Promise(resolve => {
+    if (!window.indexedDB) return resolve(null);
+    try {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = e => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch (_) {
+      resolve(null);
+    }
+  });
+}
+
+async function saveLocalProject(id, fileName, annotations, cleanBytes) {
+  try {
+    const db = await openProjectDB();
+    if (!db) return;
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const data = {
+      id: id,
+      fileName: fileName,
+      pageAnnotations: JSON.parse(JSON.stringify(annotations || {})),
+      cleanBytes: cleanBytes ? cleanBytes.slice(0) : null,
+      savedAt: Date.now()
+    };
+    store.put(data);
+    await new Promise(res => {
+      tx.oncomplete = res;
+      tx.onerror = () => res();
+    });
+  } catch (err) {
+    console.warn('[IDB] saveLocalProject error:', err);
+  }
+}
+
+async function getLocalProject(id) {
+  try {
+    const db = await openProjectDB();
+    if (!db) return null;
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    return await new Promise(resolve => {
+      const req = store.get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch (err) {
+    console.warn('[IDB] getLocalProject error:', err);
+    return null;
+  }
+}
+
+async function extractEmbeddedFilesFromPdfLib(pdfBytes) {
+  const result = {};
+  try {
+    if (!window.PDFLib) return result;
+    const { PDFDocument, PDFName } = PDFLib;
+    const loadedDoc = await PDFDocument.load(pdfBytes);
+    const names = loadedDoc.catalog.lookup(PDFName.of('Names'));
+    if (!names) return result;
+    const embFiles = names.lookup(PDFName.of('EmbeddedFiles'));
+    if (!embFiles) return result;
+    const namesArr = embFiles.lookup(PDFName.of('Names'));
+    if (!namesArr) return result;
+    for (let i = 0; i < namesArr.size(); i += 2) {
+      const keyObj = namesArr.get(i);
+      const refObj = namesArr.get(i + 1);
+      let name = '';
+      if (keyObj.decodeText) name = keyObj.decodeText();
+      else if (keyObj.value) name = keyObj.value;
+      const fileSpec = loadedDoc.context.lookup(refObj);
+      if (!fileSpec) continue;
+      const ef = fileSpec.lookup(PDFName.of('EF'));
+      if (!ef) continue;
+      const f = ef.lookup(PDFName.of('F'));
+      const stream = loadedDoc.context.lookup(f);
+      if (!stream || !stream.contents) continue;
+
+      try {
+        if (typeof DecompressionStream !== 'undefined') {
+          const ds = new DecompressionStream('deflate');
+          const writer = ds.writable.getWriter();
+          writer.write(stream.contents);
+          writer.close();
+          const resp = new Response(ds.readable);
+          const ab = await resp.arrayBuffer();
+          result[name] = new Uint8Array(ab);
+        } else {
+          result[name] = stream.contents;
+        }
+      } catch (err) {
+        console.warn('Decompression failed for ' + name, err);
+      }
+    }
+  } catch (e) {
+    console.warn('extractEmbeddedFilesFromPdfLib error:', e);
+  }
+  return result;
+}
+
 async function _loadPdfFile(file) {
   document.getElementById('file-name').textContent = file.name;
   const data = await file.arrayBuffer();
   // Keep a copy for pdf-lib — pdf.js may transfer (detach) the original ArrayBuffer to its worker
   const rawBytesCopy = data.slice(0);
-  pdfDoc = await pdfjsLib.getDocument({ data }).promise;
+  pdfDoc = await pdfjsLib.getDocument({ data: data.slice(0) }).promise;
   pages = [];
   pageAnnotations = {};
   currentTool = 'select'; // reset to default tool on every new file load
   if (fc) { fc.clear(); } // prevent old annotations being saved into new file's pageAnnotations
+
+  let effectivePdfDoc = pdfDoc;
+  let effectiveBytes = rawBytesCopy;
+  let restoredAnnotations = null;
+  let isProjectRestored = false;
+
+  // 1. Check PDF attachments via pdf.js
+  try {
+    const attachments = await pdfDoc.getAttachments();
+    if (attachments) {
+      if (attachments['pdf_editor_project.json']?.content) {
+        const jsonStr = new TextDecoder().decode(attachments['pdf_editor_project.json'].content);
+        const proj = JSON.parse(jsonStr);
+        if (proj && proj.pageAnnotations) restoredAnnotations = proj.pageAnnotations;
+      }
+      if (attachments['pdf_editor_clean_source.pdf']?.content) {
+        const cleanBytes = attachments['pdf_editor_clean_source.pdf'].content;
+        if (cleanBytes && cleanBytes.byteLength > 0) {
+          const cleanDoc = await pdfjsLib.getDocument({ data: cleanBytes.slice(0) }).promise;
+          effectivePdfDoc = cleanDoc;
+          effectiveBytes = cleanBytes.slice(0);
+          isProjectRestored = true;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('PDF.js attachments read error:', e);
+  }
+
+  // 2. Direct pdf-lib attachment extraction fallback
+  if (!restoredAnnotations || !isProjectRestored) {
+    try {
+      const directAtts = await extractEmbeddedFilesFromPdfLib(rawBytesCopy);
+      if (!restoredAnnotations && directAtts['pdf_editor_project.json']) {
+        const jsonStr = new TextDecoder().decode(directAtts['pdf_editor_project.json']);
+        const proj = JSON.parse(jsonStr);
+        if (proj && proj.pageAnnotations) restoredAnnotations = proj.pageAnnotations;
+      }
+      if (!isProjectRestored && directAtts['pdf_editor_clean_source.pdf']) {
+        const cleanBytes = directAtts['pdf_editor_clean_source.pdf'];
+        if (cleanBytes && cleanBytes.byteLength > 0) {
+          const cleanDoc = await pdfjsLib.getDocument({ data: cleanBytes.slice(0) }).promise;
+          effectivePdfDoc = cleanDoc;
+          effectiveBytes = cleanBytes.slice(0);
+          isProjectRestored = true;
+        }
+      }
+    } catch (e) {
+      console.warn('pdf-lib attachment extraction fallback error:', e);
+    }
+  }
+
+  // 3. Fallback to metadata Subject (PDF_EDITOR_DATA:)
+  if (!restoredAnnotations) {
+    try {
+      const meta = await pdfDoc.getMetadata();
+      const subj = meta?.info?.Subject || '';
+      if (subj.startsWith('PDF_EDITOR_DATA:')) {
+        const b64 = subj.slice('PDF_EDITOR_DATA:'.length);
+        const jsonStr = decodeURIComponent(escape(atob(b64)));
+        const proj = JSON.parse(jsonStr);
+        if (proj && proj.pageAnnotations) restoredAnnotations = proj.pageAnnotations;
+      }
+    } catch (e) {
+      console.warn('Metadata subject read error:', e);
+    }
+  }
+
+  // 4. Fallback to IndexedDB
+  if (!restoredAnnotations) {
+    try {
+      const localData = (await getLocalProject(file.name + '_' + file.size)) || (await getLocalProject(file.name));
+      if (localData && localData.pageAnnotations) {
+        restoredAnnotations = localData.pageAnnotations;
+        if (localData.cleanBytes && !isProjectRestored) {
+          const cleanDoc = await pdfjsLib.getDocument({ data: localData.cleanBytes.slice(0) }).promise;
+          effectivePdfDoc = cleanDoc;
+          effectiveBytes = localData.cleanBytes.slice(0);
+          isProjectRestored = true;
+        }
+      }
+    } catch (e) {
+      console.warn('IndexedDB lookup error:', e);
+    }
+  }
+
+  pdfDoc = effectivePdfDoc;
+  if (restoredAnnotations) {
+    pageAnnotations = restoredAnnotations;
+  }
+
   for (let i = 1; i <= pdfDoc.numPages; i++) {
     const pg = await pdfDoc.getPage(i);
     const vp = pg.getViewport({ scale: 1 });
     pages.push({ type:'pdf', doc:pdfDoc, pdfPageNum:i,
                  width:vp.width, height:vp.height, thumbnail:null, rotation:0,
-                 _rawBytes: rawBytesCopy });
+                 _rawBytes: effectiveBytes });
   }
   currentPage = 1;
   // Reset search state for new file
@@ -2248,6 +2457,10 @@ async function _loadPdfFile(file) {
   updateNav();
   buildThumbTray();
   generateThumbnails();
+
+  if (restoredAnnotations && Object.keys(restoredAnnotations).length > 0) {
+    showToast(_lang === 'tr' ? 'Düzenlenebilir metin ve çizimler yüklendi ✓' : 'Editable text & annotations restored ✓');
+  }
 }
 
 async function _loadImageFile(file) {
@@ -2397,7 +2610,13 @@ async function renderPage(num) {
     await new Promise(resolve => {
       fabric.util.enlivenObjects(saved.objects, objs => {
         objs.forEach(o => {
-          if (o.type === 'textbox' || o.type === 'i-text') autoFitTextObject(o);
+          if (o.type === 'textbox' || o.type === 'i-text') {
+            autoFitTextObject(o);
+            bindTextEvents(o);
+            o.selectable = true;
+            o.evented = true;
+            o.editable = true;
+          }
           fc.add(o);
         });
         fc.renderAll();
@@ -2668,20 +2887,52 @@ function getCanvasPointer(e) {
   return { x, y };
 }
 
+let _skipNextTextCreate = false;
+
+function bindTextEvents(t) {
+  if (!t || (t.type !== 'i-text' && t.type !== 'textbox')) return;
+  t.off('changed');
+  t.off('editing:exited');
+  t.on('changed', () => {
+    positionTextFormatBar(t);
+  });
+  t.on('editing:exited', () => {
+    if (!t.text || t.text.trim() === '') {
+      fc.remove(t);
+      fc.renderAll();
+      hideTextFormatBar();
+      _skipNextTextCreate = true;
+      setTimeout(() => { _skipNextTextCreate = false; }, 200);
+    } else {
+      autoFitTextObject(t);
+      pushUndo();
+    }
+  });
+}
+
+function startEditText() {
+  const obj = fc?.getActiveObject();
+  if (obj && (obj.type === 'i-text' || obj.type === 'textbox')) {
+    setTool('text');
+    obj.enterEditing();
+    showTextFormatBar(obj);
+  }
+}
+
 function setupText() {
   fc.defaultCursor = 'text';
-  let _skipNextCreate = false; // flag: editing just exited, skip creating new box
 
   fc.on('mouse:down', opt => {
-    // Single-click on existing text → select only (double-click to edit)
+    // Single-click on existing text with Text tool → enter editing mode immediately!
     if (opt.target && (opt.target.type === 'i-text' || opt.target.type === 'textbox')) {
       fc.setActiveObject(opt.target);
+      opt.target.enterEditing(opt.e);
       showTextFormatBar(opt.target);
-      _skipNextCreate = false;
+      _skipNextTextCreate = false;
       return;
     }
     if (opt.target) return; // other objects – ignore
-    if (_skipNextCreate) { _skipNextCreate = false; return; }
+    if (_skipNextTextCreate) { _skipNextTextCreate = false; return; }
 
     const p   = getCanvasPointer(opt.e);
     const sz  = Math.max(currentWidth * 5, 16);
@@ -2697,31 +2948,12 @@ function setupText() {
       selectable: true, evented: true,
       editable: true
     });
+    bindTextEvents(t);
     fc.add(t);
     fc.setActiveObject(t);
     t.enterEditing();
     fc.renderAll();
     showTextFormatBar(t);
-
-    t.on('changed', () => {
-      positionTextFormatBar(t);
-    });
-
-    t.on('editing:exited', () => {
-      // Fabric exits editing BEFORE mouse:down fires for the next click,
-      // so set a flag to skip the next create if the box was empty
-      if (!t.text || t.text.trim() === '') {
-        fc.remove(t);
-        fc.renderAll();
-        hideTextFormatBar();
-        _skipNextCreate = true;
-        // Clear the flag after a short delay in case user clicks far later
-        setTimeout(() => { _skipNextCreate = false; }, 200);
-      } else {
-        autoFitTextObject(t);
-        pushUndo();
-      }
-    });
   });
 }
 
@@ -2769,7 +3001,19 @@ function setupFabricListeners() {
   // Double-click text → enter editing (both select and text tool)
   fc.on('mouse:dblclick', e => {
     if (e.target && isText(e.target) && (currentTool === 'select' || currentTool === 'text')) {
-      e.target.enterEditing(); showTextFormatBar(e.target);
+      e.target.enterEditing(e.e); showTextFormatBar(e.target);
+    }
+  });
+
+  // Second click on already selected text in select mode enters editing
+  fc.on('mouse:down', e => {
+    if (currentTool === 'select' && e.target && isText(e.target) && fc.getActiveObject() === e.target) {
+      setTimeout(() => {
+        if (fc.getActiveObject() === e.target && !e.target.isEditing) {
+          e.target.enterEditing(e.e);
+          showTextFormatBar(e.target);
+        }
+      }, 80);
     }
   });
 
@@ -2911,6 +3155,13 @@ async function savePDF() {
   const origPage = currentPage;
   const resultDoc = await PDFDocument.create();
 
+  // Load source doc once if possible to avoid re-parsing on every page
+  let srcDoc = null;
+  const firstBytes = pages[0]?._rawBytes;
+  if (firstBytes && firstBytes.byteLength > 0) {
+    try { srcDoc = await PDFDocument.load(firstBytes); } catch(_) {}
+  }
+
   for (let i = 0; i < pages.length; i++) {
     const pd = pages[i];
     txt.textContent = `Sayfa ${i+1} / ${pages.length} işleniyor…`;
@@ -2923,7 +3174,9 @@ async function savePDF() {
     const bytesOk = pd._rawBytes && pd._rawBytes.byteLength > 0;
     if (pd.type === 'pdf' && bytesOk && !pd.rotation) {
       try {
-        const srcDoc = await PDFDocument.load(pd._rawBytes);
+        if (!srcDoc) {
+          srcDoc = await PDFDocument.load(pd._rawBytes);
+        }
         const [copiedPage] = await resultDoc.copyPages(srcDoc, [pd.pdfPageNum - 1]);
         resultDoc.addPage(copiedPage);
 
@@ -3017,6 +3270,33 @@ async function savePDF() {
     pdfPage.drawImage(embImg, { x: 0, y: 0, width: fc.width, height: fc.height });
   }
 
+  // ── Embed project annotations & clean source PDF for seamless re-editing ──
+  try {
+    const projectData = JSON.stringify({
+      version: 1,
+      appName: 'pdf.editor',
+      pageAnnotations: pageAnnotations,
+      savedAt: new Date().toISOString()
+    });
+    const projectBytes = new TextEncoder().encode(projectData);
+    await resultDoc.attach(projectBytes, 'pdf_editor_project.json', {
+      mimeType: 'application/json',
+      description: 'PDF Editor Project Data'
+    });
+    const b64Data = btoa(unescape(encodeURIComponent(projectData)));
+    resultDoc.setSubject('PDF_EDITOR_DATA:' + b64Data);
+
+    const cleanSourceBytes = pages[0]?._rawBytes;
+    if (cleanSourceBytes && cleanSourceBytes.byteLength > 0 && cleanSourceBytes.byteLength <= 40 * 1024 * 1024) {
+      await resultDoc.attach(new Uint8Array(cleanSourceBytes), 'pdf_editor_clean_source.pdf', {
+        mimeType: 'application/pdf',
+        description: 'Clean source PDF for full re-editing'
+      });
+    }
+  } catch (err) {
+    console.warn('Embedding project data failed:', err);
+  }
+
   bar.style.width = '100%';
   txt.textContent = 'İndiriliyor…';
   await new Promise(r => setTimeout(r, 120));
@@ -3029,11 +3309,24 @@ async function savePDF() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = (document.getElementById('file-name')?.textContent || 'annotated')
+  const downloadFileName = (document.getElementById('file-name')?.textContent || 'annotated')
                .replace(/\.pdf$/i, '') + '.pdf';
+  a.download = downloadFileName;
   a.click();
   URL.revokeObjectURL(url);
-  showToast(_lang === 'tr' ? 'PDF indirildi ✓' : 'PDF saved ✓');
+
+  // Also save to local IndexedDB for instant re-opening
+  try {
+    const cleanBytes = pages[0]?._rawBytes;
+    await saveLocalProject(downloadFileName + '_' + blob.size, downloadFileName, pageAnnotations, cleanBytes);
+    await saveLocalProject(downloadFileName, downloadFileName, pageAnnotations, cleanBytes);
+    const origFileName = document.getElementById('file-name')?.textContent || '';
+    if (origFileName && origFileName !== downloadFileName) {
+      await saveLocalProject(origFileName, origFileName, pageAnnotations, cleanBytes);
+    }
+  } catch (_) {}
+
+  showToast(_lang === 'tr' ? 'PDF indirildi ✓ (Düzenlenebilir)' : 'PDF saved ✓ (Editable)');
 }
 
 
