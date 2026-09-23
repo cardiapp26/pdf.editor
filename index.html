@@ -23,8 +23,8 @@
   <meta name="twitter:image" content="icon-512.png">
 
   <!-- PWA / App -->
-  <meta name="app-version" content="1.2.7">
-  <meta name="app-build" content="20260923-1208">
+  <meta name="app-version" content="1.2.8">
+  <meta name="app-build" content="20260923-1215">
   <meta name="theme-color" content="#e94560">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -220,12 +220,27 @@
     #thumb-tray {
       position:absolute; bottom:100%; left:0; right:0; height:0; overflow:hidden;
       background:var(--panel); border-top:1px solid var(--border);
-      box-shadow:0 -4px 16px rgba(0,0,0,0.08); transition:height .22s ease;
+      box-shadow:0 -4px 16px rgba(0,0,0,0.12); transition:height .22s cubic-bezier(0.16, 1, 0.3, 1), padding .22s ease;
       display:flex; align-items:center; gap:10px; padding:0; overflow-x:auto; overflow-y:hidden;
     }
     #thumb-tray::-webkit-scrollbar { height:4px; }
     #thumb-tray::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-    #bottom-area:hover #thumb-tray { height:148px; padding:10px 16px; }
+    #bottom-area.thumb-open #thumb-tray { height:148px; padding:10px 16px; }
+    #thumb-tray-close {
+      position: absolute; top: 6px; right: 10px; z-index: 10;
+      width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border);
+      background: var(--panel); color: var(--muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; font-size: 11px;
+      transition: all .12s;
+    }
+    #thumb-tray-close:hover { background: var(--hover); color: var(--text); }
+    #page-info {
+      cursor: pointer; padding: 3px 8px; border-radius: 12px;
+      transition: background .12s, color .12s; user-select: none;
+    }
+    #page-info:hover { background: var(--hover); color: var(--accent); }
+    #btn-toggle-thumbs.active { background: var(--accent); color: #fff; }
+    #btn-toggle-thumbs.active svg { stroke: #fff; }
     .thumb-item { flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; border-radius:6px; padding:4px; transition:background .12s; }
     .thumb-item:hover { background:var(--hover); }
     .thumb-item.active { outline:2px solid var(--accent); }
@@ -806,8 +821,7 @@
       .t-rot-inp { width:44px; height:30px; font-size:12px; }
       .t-rot-go  { height:30px; font-size:11px; }
 
-      /* Thumb tray: tap to open (add JS toggle via button) */
-      #bottom-area:hover #thumb-tray { height:0; padding:0; }
+      /* Thumb tray: tap to open */
       #bottom-area.thumb-open #thumb-tray { height:130px; padding:8px 12px; }
 
       /* Modals: full-width on mobile */
@@ -1169,10 +1183,15 @@
     </div>
     <!-- Bottom nav scoped to canvas column -->
     <div id="bottom-area">
-      <div id="thumb-tray"></div>
+      <div id="thumb-tray">
+        <button id="thumb-tray-close" onclick="closeThumbTray()" title="Önizlemeyi Kapat">✕</button>
+      </div>
       <div id="bottom-nav">
+        <button class="t-btn" id="btn-toggle-thumbs" title="Sayfa Önizlemeleri" data-tip="Sayfa Önizlemeleri" data-tip-en="Page Thumbnails" onclick="toggleThumbTray()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </button>
         <button class="nav-btn" id="prev-btn" onclick="prevPage()" disabled><span data-i18n="prev">◀ Önceki</span></button>
-        <span id="page-info">— / —</span>
+        <span id="page-info" onclick="toggleThumbTray()" title="Önizlemeleri göster/gizle">— / —</span>
         <button class="nav-btn" id="next-btn" onclick="nextPage()" disabled><span data-i18n="next">Sonraki ▶</span></button>
         <span id="zoom-info" style="margin-left:4px">125%</span>
         <div class="b-sep"></div>
@@ -2735,7 +2754,13 @@ function updateNav() {
 function updateActiveThumb() {
   document.querySelectorAll('.thumb-item').forEach(el => el.classList.remove('active'));
   const el = document.getElementById(`thumb-wrap-${currentPage}`);
-  if (el) { el.classList.add('active'); el.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' }); }
+  if (el) {
+    el.classList.add('active');
+    const area = document.getElementById('bottom-area');
+    if (area?.classList.contains('thumb-open')) {
+      el.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
+    }
+  }
 }
 async function prevPage() { if (currentPage > 1) { saveCurrentAnnotations(); await renderPage(currentPage - 1); } }
 async function nextPage() { if (currentPage < pages.length) { saveCurrentAnnotations(); await renderPage(currentPage + 1); } }
@@ -2745,19 +2770,53 @@ function saveCurrentAnnotations() { if (fc) pageAnnotations[currentPage] = fc.to
 /* ═══════════════════════════════════════════════════════════
    THUMBNAILS
 ═══════════════════════════════════════════════════════════ */
-/* Mobile: tap bottom-nav page-info to toggle thumb tray */
-document.getElementById('page-info').addEventListener('click', () => {
-  if (window.innerWidth > 768) return;
-  document.getElementById('bottom-area').classList.toggle('thumb-open');
+function openThumbTray() {
+  if (!pages.length) return;
+  document.getElementById('bottom-area')?.classList.add('thumb-open');
+  document.getElementById('btn-toggle-thumbs')?.classList.add('active');
+  setTimeout(() => {
+    const el = document.getElementById(`thumb-wrap-${currentPage}`);
+    if (el) el.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
+  }, 100);
+}
+
+function closeThumbTray() {
+  document.getElementById('bottom-area')?.classList.remove('thumb-open');
+  document.getElementById('btn-toggle-thumbs')?.classList.remove('active');
+}
+
+function toggleThumbTray() {
+  if (!pages.length) return;
+  const area = document.getElementById('bottom-area');
+  if (area?.classList.contains('thumb-open')) {
+    closeThumbTray();
+  } else {
+    openThumbTray();
+  }
+}
+
+// Click outside or press Esc to close thumbnail tray
+document.addEventListener('mousedown', e => {
+  const area = document.getElementById('bottom-area');
+  if (!area || !area.classList.contains('thumb-open')) return;
+  const tray = document.getElementById('thumb-tray');
+  const btnToggle = document.getElementById('btn-toggle-thumbs');
+  const pageInfo = document.getElementById('page-info');
+  if (tray && !tray.contains(e.target) && !btnToggle?.contains(e.target) && !pageInfo?.contains(e.target)) {
+    closeThumbTray();
+  }
 });
-document.getElementById('thumb-tray').addEventListener('click', () => {
-  if (window.innerWidth > 768) return;
-  document.getElementById('bottom-area').classList.remove('thumb-open');
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeThumbTray();
+  }
 });
 
 function buildThumbTray() {
   const tray = document.getElementById('thumb-tray');
-  tray.innerHTML = '';
+  if (!tray) return;
+  tray.innerHTML = '<button id="thumb-tray-close" onclick="closeThumbTray()" title="Önizlemeyi Kapat">✕</button>';
   pages.forEach((pd, i) => {
     const wrap = document.createElement('div');
     wrap.className = 'thumb-item' + (i + 1 === currentPage ? ' active' : '');
