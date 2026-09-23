@@ -1,4 +1,4 @@
-const CACHE = 'pdf-annotator-v9';
+const CACHE = 'pdf-annotator-v10';
 const LOCAL = [
   './',
   './index.html',

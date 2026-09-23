@@ -23,8 +23,8 @@
   <meta name="twitter:image" content="icon-512.png">
 
   <!-- PWA / App -->
-  <meta name="app-version" content="1.2.2">
-  <meta name="app-build" content="20260922-1525">
+  <meta name="app-version" content="1.2.3">
+  <meta name="app-build" content="20260923-1025">
   <meta name="theme-color" content="#e94560">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -493,6 +493,72 @@
     /* ── t-btn colour variants ───────────────────── */
     .t-btn.active-blue { background:var(--blue) !important; box-shadow:0 2px 8px rgba(37,99,235,.35); }
     .t-btn.active-blue svg { stroke:#fff; }
+
+    /* ── PEN QUICK COLOR FLYOUT MENU ───────────────── */
+    .pen-color-dot {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      border: 1.5px solid #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+      pointer-events: none;
+      transition: transform .12s, background .15s;
+    }
+    .t-btn:hover .pen-color-dot { transform: scale(1.18); }
+    .t-btn.active .pen-color-dot { border-color: #fff; }
+
+    .pen-quick-menu {
+      position: fixed; z-index: 1000;
+      background: #ffffff; border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: 0 12px 32px -4px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.08);
+      padding: 10px 12px; width: 196px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      user-select: none;
+      animation: pq-pop .14s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes pq-pop {
+      from { opacity: 0; transform: scale(0.92) translateX(-6px); }
+      to { opacity: 1; transform: scale(1) translateX(0); }
+    }
+    .pen-quick-menu::before {
+      content: ""; position: absolute;
+      left: -5px; top: var(--arrow-top, 20px);
+      width: 10px; height: 10px; background: #ffffff;
+      border-left: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      transform: rotate(45deg); border-radius: 1px;
+    }
+    .pq-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .pq-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+    .pq-current-badge { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+    .pq-palette { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 8px; }
+    .pq-swatch {
+      width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
+      transition: transform .12s, box-shadow .12s; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    }
+    .pq-swatch:hover { transform: scale(1.18); box-shadow: 0 2px 8px rgba(0,0,0,0.22); }
+    .pq-swatch.active { border-color: #1e293b; box-shadow: 0 0 0 2px #fff inset, 0 2px 6px rgba(0,0,0,0.3); transform: scale(1.12); }
+    .pq-swatch.is-white { border: 1.5px solid #cbd5e1; }
+    .pq-custom-row { margin-top: 2px; margin-bottom: 4px; }
+    .pq-custom-label {
+      display: flex; align-items: center; gap: 7px; cursor: pointer; font-size: 11px; font-weight: 500;
+      color: #475569; padding: 4px 6px; border-radius: 6px; transition: background .1s;
+    }
+    .pq-custom-label:hover { background: #f1f5f9; color: #0f172a; }
+    .pq-custom-label input[type="color"] { width: 18px; height: 18px; border: none; border-radius: 4px; padding: 0; cursor: pointer; background: transparent; }
+    .pq-divider { height: 1px; background: #f1f5f9; margin: 6px 0; }
+    .pq-size-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .pq-size-label { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .pq-size-pills { display: flex; gap: 4px; }
+    .pq-size-pill {
+      width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--border);
+      background: #f8fafc; color: #334155; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all .12s; padding: 0;
+    }
+    .pq-size-pill:hover { background: #e2e8f0; color: #0f172a; }
+    .pq-size-pill.active { background: #1e293b; color: #fff; border-color: #1e293b; }
 
     /* ── TEXT FORMAT BAR ─────────────────────────── */
     #text-format-bar {
@@ -1029,8 +1095,9 @@
     <button class="t-btn active" id="t-select" data-tool="select" data-tip="Seç (V)" data-tip-en="Select (V)" onclick="setTool('select')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-7 1-4 7z"/></svg>
     </button>
-    <button class="t-btn" id="t-pen" data-tool="pen" data-tip="Kalem (P)" data-tip-en="Pen (P)" onclick="setTool('pen')">
+    <button class="t-btn" id="t-pen" data-tool="pen" data-tip="Kalem (P) [Basılı tut: Renk]" data-tip-en="Pen (P) [Hold: Color]" onclick="onPenButtonClick(event)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+      <span class="pen-color-dot" id="pen-color-dot" style="background:#e94560;"></span>
     </button>
     <button class="t-btn" id="t-highlight" data-tool="highlight" data-tip="Vurgulayıcı (H)" data-tip-en="Highlighter (H)" onclick="setTool('highlight')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h3l6-6"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
@@ -1425,6 +1492,31 @@
   </button>
 </div>
 
+<!-- ── PEN QUICK COLOR & SIZE MENU ──────────────────────── -->
+<div id="pen-quick-menu" class="pen-quick-menu" style="display:none;" oncontextmenu="event.preventDefault()">
+  <div class="pq-header">
+    <span class="pq-title" data-i18n="pq-title">Kalem Rengi</span>
+    <span class="pq-current-badge" id="pq-current-badge" style="background:#e94560;"></span>
+  </div>
+  <div class="pq-palette" id="pq-palette"></div>
+  <div class="pq-custom-row">
+    <label class="pq-custom-label">
+      <input type="color" id="pq-custom-color" value="#e94560" oninput="selectPenColor(this.value)">
+      <span data-i18n="pq-custom">Özel Renk Seç</span>
+    </label>
+  </div>
+  <div class="pq-divider"></div>
+  <div class="pq-size-row">
+    <span class="pq-size-label" data-i18n="pq-size">Kalınlık</span>
+    <div class="pq-size-pills">
+      <button type="button" class="pq-size-pill" data-size="1" onclick="setQuickPenSize(1)" title="1px"><span style="width:2px;height:2px;border-radius:50%;background:currentColor"></span></button>
+      <button type="button" class="pq-size-pill active" data-size="3" onclick="setQuickPenSize(3)" title="3px"><span style="width:4px;height:4px;border-radius:50%;background:currentColor"></span></button>
+      <button type="button" class="pq-size-pill" data-size="6" onclick="setQuickPenSize(6)" title="6px"><span style="width:7px;height:7px;border-radius:50%;background:currentColor"></span></button>
+      <button type="button" class="pq-size-pill" data-size="12" onclick="setQuickPenSize(12)" title="12px"><span style="width:11px;height:11px;border-radius:50%;background:currentColor"></span></button>
+    </div>
+  </div>
+</div>
+
 <!-- ── TEXT FORMAT BAR ──────────────────────────────────── -->
 <div id="text-format-bar">
   <select id="tf-family" onchange="applyTextProp('fontFamily', this.value)">
@@ -1740,6 +1832,7 @@ const I18N = {
     'app-biostat':'Biyoistatistik Uygulaması','app-flow':'Akademik Akış Tasarımcısı',
     'app-dicom':'DICOM Görüntüleyici','app-notes':'Not Uygulaması',
     'app-portal':'drtr.uk — Tüm Araçlar',
+    'pq-title':'Kalem Rengi','pq-custom':'Özel Renk Seç','pq-size':'Kalınlık',
   },
   en: {
     'open':'Open PDF','undo':'Undo','redo':'Redo','fullscreen':'Fullscreen',
@@ -1777,6 +1870,7 @@ const I18N = {
     'app-biostat':'Biostatistics App','app-flow':'Academic Flow Designer',
     'app-dicom':'DICOM Viewer','app-notes':'Notes App',
     'app-portal':'drtr.uk — All Tools',
+    'pq-title':'Pen Color','pq-custom':'Custom Color','pq-size':'Thickness',
   }
 };
 
@@ -1846,30 +1940,37 @@ let isShapeDrawing = false, shapeOrigin = null, tempShape = null;
 const PALETTE = ['#e94560','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#ffffff','#111827'];
 (function buildPalette() {
   const grid = document.getElementById('color-grid');
-  PALETTE.forEach(hex => {
-    const d = document.createElement('div');
-    d.className = 'swatch' + (hex === currentColor ? ' active' : '');
-    d.style.background = hex;
-    if (hex === '#ffffff') d.style.border = '2px solid #e2e8f0';
-    d.dataset.color = hex;
-    d.onclick = () => selectSwatch(d, hex);
-    grid.appendChild(d);
-  });
+  if (grid) {
+    PALETTE.forEach(hex => {
+      const d = document.createElement('div');
+      d.className = 'swatch' + (hex === currentColor ? ' active' : '');
+      d.style.background = hex;
+      if (hex === '#ffffff') d.style.border = '2px solid #e2e8f0';
+      d.dataset.color = hex;
+      d.onclick = () => selectSwatch(d, hex);
+      grid.appendChild(d);
+    });
+  }
+  buildPenQuickMenu();
 })();
 
 function selectSwatch(el, color) {
   document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
   el.classList.add('active');
   currentColor = color;
-  document.getElementById('custom-color').value = color;
+  const customColor = document.getElementById('custom-color');
+  if (customColor) customColor.value = color;
+  updatePenColorIndicator(color);
   applyBrushColor();
 }
 function setCustomColor(color) {
   currentColor = color;
   document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+  updatePenColorIndicator(color);
   applyBrushColor();
 }
 function applyBrushColor() {
+  updatePenColorIndicator(currentColor);
   if (!fc) return;
   if (fc.isDrawingMode && fc.freeDrawingBrush) fc.freeDrawingBrush.color = resolveColor();
   fc.getActiveObjects().forEach(o => {
@@ -1888,11 +1989,199 @@ function hexToRgba(hex, alpha) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   PEN QUICK COLOR & SIZE MENU (Hold on Pen Tool)
+═══════════════════════════════════════════════════════════ */
+let _penPressTimer = null;
+let _penLongPressTriggered = false;
+let _penMenuOpen = false;
+
+function buildPenQuickMenu() {
+  const container = document.getElementById('pq-palette');
+  if (!container) return;
+  container.innerHTML = '';
+  PALETTE.forEach(hex => {
+    const d = document.createElement('div');
+    const isAct = hex.toLowerCase() === currentColor.toLowerCase();
+    d.className = 'pq-swatch' + (isAct ? ' active' : '') + (hex === '#ffffff' ? ' is-white' : '');
+    d.style.background = hex;
+    d.dataset.color = hex;
+    d.title = hex;
+    d.onclick = (e) => {
+      e.stopPropagation();
+      selectPenColor(hex);
+    };
+    container.appendChild(d);
+  });
+  updatePenColorIndicator(currentColor);
+}
+
+function updatePenColorIndicator(color) {
+  const dot = document.getElementById('pen-color-dot');
+  if (dot) dot.style.background = color;
+  const badge = document.getElementById('pq-current-badge');
+  if (badge) badge.style.background = color;
+  const pqCustom = document.getElementById('pq-custom-color');
+  if (pqCustom) pqCustom.value = color;
+
+  document.querySelectorAll('.pq-swatch').forEach(s => {
+    s.classList.toggle('active', (s.dataset.color || '').toLowerCase() === color.toLowerCase());
+  });
+}
+
+function selectPenColor(color) {
+  currentColor = color;
+  const customColor = document.getElementById('custom-color');
+  if (customColor) customColor.value = color;
+
+  document.querySelectorAll('#color-grid .swatch').forEach(s => {
+    s.classList.toggle('active', (s.dataset.color || '').toLowerCase() === color.toLowerCase());
+  });
+
+  updatePenColorIndicator(color);
+  applyBrushColor();
+
+  if (currentTool !== 'pen') {
+    setTool('pen');
+  }
+
+  // Smooth close after selection
+  setTimeout(() => {
+    closePenColorMenu();
+  }, 120);
+}
+
+function setQuickPenSize(v) {
+  setStrokeWidth(v);
+  document.querySelectorAll('.pq-size-pill').forEach(p => {
+    p.classList.toggle('active', +p.dataset.size === v);
+  });
+}
+
+function openPenColorMenu() {
+  const penBtn = document.getElementById('t-pen');
+  const menu = document.getElementById('pen-quick-menu');
+  if (!penBtn || !menu) return;
+
+  if (!menu.querySelector('.pq-swatch')) {
+    buildPenQuickMenu();
+  }
+
+  updatePenColorIndicator(currentColor);
+
+  document.querySelectorAll('.pq-size-pill').forEach(p => {
+    p.classList.toggle('active', +p.dataset.size === currentWidth);
+  });
+
+  menu.style.display = 'block';
+
+  const btnRect = penBtn.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+
+  const left = btnRect.right + 10;
+  let top = btnRect.top + (btnRect.height / 2) - 36;
+  if (top + menuRect.height > window.innerHeight - 15) {
+    top = window.innerHeight - menuRect.height - 15;
+  }
+  if (top < 56) top = 56;
+
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+
+  const arrowTop = Math.max(14, Math.min(menuRect.height - 14, (btnRect.top + btnRect.height / 2) - top - 5));
+  menu.style.setProperty('--arrow-top', arrowTop + 'px');
+
+  _penMenuOpen = true;
+}
+
+function closePenColorMenu() {
+  const menu = document.getElementById('pen-quick-menu');
+  if (menu) menu.style.display = 'none';
+  _penMenuOpen = false;
+}
+
+function togglePenColorMenu() {
+  if (_penMenuOpen) closePenColorMenu();
+  else openPenColorMenu();
+}
+
+function onPenButtonClick(e) {
+  if (_penLongPressTriggered) {
+    _penLongPressTriggered = false;
+    return;
+  }
+  if (currentTool === 'pen') {
+    togglePenColorMenu();
+  } else {
+    setTool('pen');
+    closePenColorMenu();
+  }
+}
+
+(function initPenButtonListeners() {
+  const penBtn = document.getElementById('t-pen');
+  if (!penBtn) return;
+
+  const startPress = (e) => {
+    if (e.type === 'mousedown' && e.button !== 0) return;
+    _penLongPressTriggered = false;
+    if (_penPressTimer) clearTimeout(_penPressTimer);
+    _penPressTimer = setTimeout(() => {
+      _penLongPressTriggered = true;
+      if (currentTool !== 'pen') {
+        setTool('pen');
+      }
+      openPenColorMenu();
+    }, 350);
+  };
+
+  const cancelPress = () => {
+    if (_penPressTimer) {
+      clearTimeout(_penPressTimer);
+      _penPressTimer = null;
+    }
+  };
+
+  penBtn.addEventListener('mousedown', startPress);
+  penBtn.addEventListener('mouseup', cancelPress);
+  penBtn.addEventListener('mouseleave', cancelPress);
+
+  penBtn.addEventListener('touchstart', startPress, { passive: true });
+  penBtn.addEventListener('touchend', cancelPress);
+  penBtn.addEventListener('touchcancel', cancelPress);
+
+  penBtn.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (currentTool !== 'pen') setTool('pen');
+    openPenColorMenu();
+  });
+
+  document.addEventListener('mousedown', e => {
+    if (!_penMenuOpen) return;
+    const menu = document.getElementById('pen-quick-menu');
+    if (menu && !menu.contains(e.target) && !penBtn.contains(e.target)) {
+      closePenColorMenu();
+    }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && _penMenuOpen) {
+      closePenColorMenu();
+    }
+  });
+})();
+
+/* ═══════════════════════════════════════════════════════════
    SLIDERS
 ═══════════════════════════════════════════════════════════ */
 function setStrokeWidth(v) {
   currentWidth = v;
-  document.getElementById('sw-val').textContent = v + 'px';
+  const swVal = document.getElementById('sw-val');
+  if (swVal) swVal.textContent = v + 'px';
+  const swSlider = document.getElementById('sw-slider');
+  if (swSlider && +swSlider.value !== v) swSlider.value = v;
+  document.querySelectorAll('.pq-size-pill').forEach(p => {
+    p.classList.toggle('active', +p.dataset.size === v);
+  });
   if (!fc) return;
   if (fc.freeDrawingBrush) fc.freeDrawingBrush.width = currentTool === 'highlight' ? v * 6 : v;
   fc.getActiveObjects().forEach(o => o.set('strokeWidth', v));
