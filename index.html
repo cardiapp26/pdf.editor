@@ -23,8 +23,8 @@
   <meta name="twitter:image" content="icon-512.png">
 
   <!-- PWA / App -->
-  <meta name="app-version" content="1.2.3">
-  <meta name="app-build" content="20260923-1025">
+  <meta name="app-version" content="1.2.4">
+  <meta name="app-build" content="20260923-1028">
   <meta name="theme-color" content="#e94560">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2395,7 +2395,12 @@ async function renderPage(num) {
   if (saved && saved.objects && saved.objects.length) {
     await new Promise(resolve => {
       fabric.util.enlivenObjects(saved.objects, objs => {
-        objs.forEach(o => fc.add(o)); fc.renderAll(); resolve();
+        objs.forEach(o => {
+          if (o.type === 'textbox' || o.type === 'i-text') autoFitTextObject(o);
+          fc.add(o);
+        });
+        fc.renderAll();
+        resolve();
       });
     });
   }
@@ -2523,8 +2528,10 @@ function setTool(tool) {
   const _activeObj = fc.getActiveObject();
   if (_activeObj && _activeObj.isEditing) {
     _activeObj.exitEditing();
-    if (!_activeObj.text || _activeObj.text === '') {
+    if (!_activeObj.text || _activeObj.text.trim() === '') {
       fc.remove(_activeObj); fc.renderAll();
+    } else {
+      autoFitTextObject(_activeObj);
     }
   }
   hideTextFormatBar();
@@ -2620,6 +2627,33 @@ function setupShape(type) {
   });
 }
 
+function autoFitTextObject(t) {
+  if (!t || !t.text) return;
+  if (t.type === 'textbox') {
+    let maxLineWidth = 0;
+    if (t._textLines && t._textLines.length) {
+      for (let i = 0; i < t._textLines.length; i++) {
+        const lw = t.getLineWidth(i);
+        if (lw > maxLineWidth) maxLineWidth = lw;
+      }
+    }
+    if (!maxLineWidth && typeof t.calcTextWidth === 'function') {
+      maxLineWidth = t.calcTextWidth();
+    }
+    if (maxLineWidth > 0) {
+      t.set('width', Math.ceil(maxLineWidth + 4));
+      t.setCoords();
+      fc?.renderAll();
+    }
+  } else if (t.type === 'i-text') {
+    if (typeof t.initDimensions === 'function') {
+      t.initDimensions();
+    }
+    t.setCoords();
+    fc?.renderAll();
+  }
+}
+
 function setupText() {
   fc.defaultCursor = 'text';
   let _skipNextCreate = false; // flag: editing just exited, skip creating new box
@@ -2638,14 +2672,12 @@ function setupText() {
     const p   = fc.getPointer(opt.e);
     const sz  = Math.max(currentWidth * 5, 16);
     const col = document.getElementById('tf-color')?.value || currentColor;
-    const t   = new fabric.Textbox('', {
+    const t   = new fabric.IText('', {
       left: p.x, top: p.y,
-      width: Math.max(180, Math.round((fc.getWidth() || 600) * 0.35)),
       fontSize: sz, fill: col, opacity: currentOpacity,
       fontFamily: document.getElementById('tf-family')?.value || 'Arial',
       selectable: true, evented: true,
-      splitByGrapheme: false,
-      lockScalingX: true, lockScalingY: true, lockScalingFlip: true
+      editable: true
     });
     fc.add(t);
     fc.setActiveObject(t);
@@ -2653,10 +2685,14 @@ function setupText() {
     fc.renderAll();
     showTextFormatBar(t);
 
+    t.on('changed', () => {
+      positionTextFormatBar(t);
+    });
+
     t.on('editing:exited', () => {
       // Fabric exits editing BEFORE mouse:down fires for the next click,
       // so set a flag to skip the next create if the box was empty
-      if (!t.text || t.text === '') {
+      if (!t.text || t.text.trim() === '') {
         fc.remove(t);
         fc.renderAll();
         hideTextFormatBar();
@@ -2664,6 +2700,7 @@ function setupText() {
         // Clear the flag after a short delay in case user clicks far later
         setTimeout(() => { _skipNextCreate = false; }, 200);
       } else {
+        autoFitTextObject(t);
         pushUndo();
       }
     });
@@ -2672,7 +2709,24 @@ function setupText() {
 
 function setupFabricListeners() {
   fc.on('path:created',    () => pushUndo());
-  fc.on('object:modified', () => pushUndo());
+  fc.on('object:modified', e => {
+    const o = e.target;
+    if (o && (o.type === 'i-text' || o.type === 'textbox')) {
+      if (o.scaleX !== 1 || o.scaleY !== 1) {
+        const scale = (o.scaleX + o.scaleY) / 2;
+        o.fontSize = Math.max(8, Math.round(o.fontSize * scale));
+        o.scaleX = 1;
+        o.scaleY = 1;
+        if (typeof o.initDimensions === 'function') o.initDimensions();
+        o.setCoords();
+        fc.renderAll();
+        const szInput = document.getElementById('tf-size');
+        if (szInput && fc.getActiveObject() === o) szInput.value = o.fontSize;
+      }
+      autoFitTextObject(o);
+    }
+    pushUndo();
+  });
 
   // Text format bar – show/hide on IText selection
   const isText = o => o && (o.type === 'i-text' || o.type === 'textbox');
@@ -2683,6 +2737,9 @@ function setupFabricListeners() {
   });
   fc.on('selection:cleared', () => hideTextFormatBar());
   fc.on('object:moving',     e => { if (isText(e.target)) positionTextFormatBar(e.target); });
+  fc.on('text:changed',      e => { if (e.target) positionTextFormatBar(e.target); });
+  fc.on('text:editing:exited', e => { if (e.target) autoFitTextObject(e.target); });
+
   // Double-click text → enter editing (both select and text tool)
   fc.on('mouse:dblclick', e => {
     if (e.target && isText(e.target) && (currentTool === 'select' || currentTool === 'text')) {
@@ -2763,7 +2820,11 @@ function applyTextProp(prop, value) {
   } else {
     obj.set(prop, value);
   }
+  if (typeof obj.initDimensions === 'function') obj.initDimensions();
+  obj.setCoords();
+  autoFitTextObject(obj);
   fc.renderAll();
+  positionTextFormatBar(obj);
 }
 function toggleTextFmt(fmt) {
   const obj = fc?.getActiveObject();
@@ -2774,7 +2835,11 @@ function toggleTextFmt(fmt) {
   const next = (cur === on || cur === true) ? off : on;
   obj.set(prop, next);
   document.getElementById('tf-' + fmt)?.classList.toggle('active', next === on || next === true);
+  if (typeof obj.initDimensions === 'function') obj.initDimensions();
+  obj.setCoords();
+  autoFitTextObject(obj);
   fc.renderAll();
+  positionTextFormatBar(obj);
   pushUndo();
 }
 
