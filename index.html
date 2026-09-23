@@ -23,8 +23,8 @@
   <meta name="twitter:image" content="icon-512.png">
 
   <!-- PWA / App -->
-  <meta name="app-version" content="1.2.6">
-  <meta name="app-build" content="20260923-1033">
+  <meta name="app-version" content="1.2.7">
+  <meta name="app-build" content="20260923-1208">
   <meta name="theme-color" content="#e94560">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -494,8 +494,8 @@
     .t-btn.active-blue { background:var(--blue) !important; box-shadow:0 2px 8px rgba(37,99,235,.35); }
     .t-btn.active-blue svg { stroke:#fff; }
 
-    /* ── PEN QUICK COLOR FLYOUT MENU ───────────────── */
-    .pen-color-dot {
+    /* ── TOOL QUICK COLOR FLYOUT MENU ───────────────── */
+    .tool-color-dot, .pen-color-dot {
       position: absolute;
       bottom: 2px;
       right: 2px;
@@ -507,8 +507,8 @@
       pointer-events: none;
       transition: transform .12s, background .15s;
     }
-    .t-btn:hover .pen-color-dot { transform: scale(1.18); }
-    .t-btn.active .pen-color-dot { border-color: #fff; }
+    .t-btn:hover .tool-color-dot, .t-btn:hover .pen-color-dot { transform: scale(1.18); }
+    .t-btn.active .tool-color-dot, .t-btn.active .pen-color-dot { border-color: #fff; }
 
     .pen-quick-menu {
       position: fixed; z-index: 1000;
@@ -1095,31 +1095,37 @@
     <button class="t-btn active" id="t-select" data-tool="select" data-tip="Seç (V)" data-tip-en="Select (V)" onclick="setTool('select')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-7 1-4 7z"/></svg>
     </button>
-    <button class="t-btn" id="t-pen" data-tool="pen" data-tip="Kalem (P) [Basılı tut: Renk]" data-tip-en="Pen (P) [Hold: Color]" onclick="onPenButtonClick(event)">
+    <button class="t-btn" id="t-pen" data-tool="pen" data-tip="Kalem (P) [Basılı tut: Renk]" data-tip-en="Pen (P) [Hold: Color]">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-      <span class="pen-color-dot" id="pen-color-dot" style="background:#e94560;"></span>
+      <span class="tool-color-dot" id="pen-color-dot" style="background:#e94560;"></span>
     </button>
-    <button class="t-btn" id="t-highlight" data-tool="highlight" data-tip="Vurgulayıcı (H)" data-tip-en="Highlighter (H)" onclick="setTool('highlight')">
+    <button class="t-btn" id="t-highlight" data-tool="highlight" data-tip="Vurgulayıcı (H) [Basılı tut: Renk]" data-tip-en="Highlighter (H) [Hold: Color]">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h3l6-6"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
+      <span class="tool-color-dot" id="highlight-color-dot" style="background:#eab308;"></span>
     </button>
     <button class="t-btn" id="t-eraser" data-tool="eraser" data-tip="Silgi (E)" data-tip-en="Eraser (E)" onclick="setTool('eraser')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
     </button>
     <div class="t-sep"></div>
-    <button class="t-btn" id="t-line" data-tool="line" data-tip="Çizgi (L)" data-tip-en="Line (L)" onclick="setTool('line')">
+    <button class="t-btn" id="t-line" data-tool="line" data-tip="Çizgi (L) [Basılı tut: Renk]" data-tip-en="Line (L) [Hold: Color]">
       <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="19" x2="19" y2="5"/></svg>
+      <span class="tool-color-dot" id="line-color-dot" style="background:#e94560;"></span>
     </button>
-    <button class="t-btn" id="t-arrow" data-tool="arrow" data-tip="Ok (A)" data-tip-en="Arrow (A)" onclick="setTool('arrow')">
+    <button class="t-btn" id="t-arrow" data-tool="arrow" data-tip="Ok (A) [Basılı tut: Renk]" data-tip-en="Arrow (A) [Hold: Color]">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+      <span class="tool-color-dot" id="arrow-color-dot" style="background:#e94560;"></span>
     </button>
-    <button class="t-btn" id="t-rect" data-tool="rect" data-tip="Dikdörtgen (R)" data-tip-en="Rectangle (R)" onclick="setTool('rect')">
+    <button class="t-btn" id="t-rect" data-tool="rect" data-tip="Dikdörtgen (R) [Basılı tut: Renk]" data-tip-en="Rectangle (R) [Hold: Color]">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
+      <span class="tool-color-dot" id="rect-color-dot" style="background:#e94560;"></span>
     </button>
-    <button class="t-btn" id="t-circle" data-tool="circle" data-tip="Daire (C)" data-tip-en="Circle (C)" onclick="setTool('circle')">
+    <button class="t-btn" id="t-circle" data-tool="circle" data-tip="Daire (C) [Basılı tut: Renk]" data-tip-en="Circle (C) [Hold: Color]">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg>
+      <span class="tool-color-dot" id="circle-color-dot" style="background:#e94560;"></span>
     </button>
-    <button class="t-btn" id="t-text" data-tool="text" data-tip="Metin (T)" data-tip-en="Text (T)" onclick="setTool('text')">
+    <button class="t-btn" id="t-text" data-tool="text" data-tip="Metin (T) [Basılı tut: Renk]" data-tip-en="Text (T) [Hold: Color]">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+      <span class="tool-color-dot" id="text-color-dot" style="background:#111827;"></span>
     </button>
     <div class="t-sep"></div>
     <button class="t-btn" id="t-stamp" data-tip="Resim Damgası (I)" data-tip-en="Image Stamp (I)" onclick="openStampPicker()">
@@ -1492,16 +1498,16 @@
   </button>
 </div>
 
-<!-- ── PEN QUICK COLOR & SIZE MENU ──────────────────────── -->
+<!-- ── TOOL QUICK COLOR & SIZE MENU ──────────────────────── -->
 <div id="pen-quick-menu" class="pen-quick-menu" style="display:none;" oncontextmenu="event.preventDefault()">
   <div class="pq-header">
-    <span class="pq-title" data-i18n="pq-title">Kalem Rengi</span>
+    <span class="pq-title" id="pq-title" data-i18n="pq-title">Kalem Rengi</span>
     <span class="pq-current-badge" id="pq-current-badge" style="background:#e94560;"></span>
   </div>
   <div class="pq-palette" id="pq-palette"></div>
   <div class="pq-custom-row">
     <label class="pq-custom-label">
-      <input type="color" id="pq-custom-color" value="#e94560" oninput="selectPenColor(this.value)">
+      <input type="color" id="pq-custom-color" value="#e94560" oninput="selectToolColor(this.value)">
       <span data-i18n="pq-custom">Özel Renk Seç</span>
     </label>
   </div>
@@ -1509,10 +1515,10 @@
   <div class="pq-size-row">
     <span class="pq-size-label" data-i18n="pq-size">Kalınlık</span>
     <div class="pq-size-pills">
-      <button type="button" class="pq-size-pill" data-size="1" onclick="setQuickPenSize(1)" title="1px"><span style="width:2px;height:2px;border-radius:50%;background:currentColor"></span></button>
-      <button type="button" class="pq-size-pill active" data-size="3" onclick="setQuickPenSize(3)" title="3px"><span style="width:4px;height:4px;border-radius:50%;background:currentColor"></span></button>
-      <button type="button" class="pq-size-pill" data-size="6" onclick="setQuickPenSize(6)" title="6px"><span style="width:7px;height:7px;border-radius:50%;background:currentColor"></span></button>
-      <button type="button" class="pq-size-pill" data-size="12" onclick="setQuickPenSize(12)" title="12px"><span style="width:11px;height:11px;border-radius:50%;background:currentColor"></span></button>
+      <button type="button" class="pq-size-pill" data-size="1" onclick="setQuickToolSize(1)" title="1px"><span style="width:2px;height:2px;border-radius:50%;background:currentColor"></span></button>
+      <button type="button" class="pq-size-pill active" data-size="3" onclick="setQuickToolSize(3)" title="3px"><span style="width:4px;height:4px;border-radius:50%;background:currentColor"></span></button>
+      <button type="button" class="pq-size-pill" data-size="6" onclick="setQuickToolSize(6)" title="6px"><span style="width:7px;height:7px;border-radius:50%;background:currentColor"></span></button>
+      <button type="button" class="pq-size-pill" data-size="12" onclick="setQuickToolSize(12)" title="12px"><span style="width:11px;height:11px;border-radius:50%;background:currentColor"></span></button>
     </div>
   </div>
 </div>
@@ -1931,6 +1937,16 @@ let currentColor   = '#e94560';
 let currentWidth   = 3;
 let currentOpacity = 1.0;
 
+const toolColors = {
+  pen: '#e94560',
+  highlight: '#eab308',
+  line: '#e94560',
+  arrow: '#e94560',
+  rect: '#e94560',
+  circle: '#e94560',
+  text: '#111827'
+};
+
 let pageAnnotations = {};
 let undoStack = [], redoStack = [];
 let isShapeDrawing = false, shapeOrigin = null, tempShape = null;
@@ -1955,26 +1971,22 @@ const PALETTE = ['#e94560','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#e
       grid.appendChild(d);
     });
   }
-  buildPenQuickMenu();
+  buildToolQuickMenu();
+  initColorableToolListeners();
+  updateAllToolColorDots();
 })();
 
 function selectSwatch(el, color) {
   document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
   el.classList.add('active');
-  currentColor = color;
-  const customColor = document.getElementById('custom-color');
-  if (customColor) customColor.value = color;
-  updatePenColorIndicator(color);
-  applyBrushColor();
+  selectToolColor(color);
 }
 function setCustomColor(color) {
-  currentColor = color;
   document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
-  updatePenColorIndicator(color);
-  applyBrushColor();
+  selectToolColor(color);
 }
 function applyBrushColor() {
-  updatePenColorIndicator(currentColor);
+  updateAllToolColorDots();
   if (!fc) return;
   if (fc.isDrawingMode && fc.freeDrawingBrush) fc.freeDrawingBrush.color = resolveColor();
   fc.getActiveObjects().forEach(o => {
@@ -1993,47 +2005,64 @@ function hexToRgba(hex, alpha) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   PEN QUICK COLOR & SIZE MENU (Hold on Pen Tool)
+   TOOL QUICK COLOR & SIZE MENU (Hold or Click on Active Tool)
 ═══════════════════════════════════════════════════════════ */
-let _penPressTimer = null;
-let _penLongPressTriggered = false;
+let _toolPressTimer = null;
+let _toolLongPressTriggered = false;
+let _toolColorMenuOpen = false;
 let _penMenuOpen = false;
+let _activeColorMenuTool = 'pen';
 
-function buildPenQuickMenu() {
+function buildToolQuickMenu() {
   const container = document.getElementById('pq-palette');
   if (!container) return;
   container.innerHTML = '';
   PALETTE.forEach(hex => {
     const d = document.createElement('div');
-    const isAct = hex.toLowerCase() === currentColor.toLowerCase();
+    const targetTool = _activeColorMenuTool || currentTool || 'pen';
+    const activeColor = toolColors[targetTool] || currentColor;
+    const isAct = hex.toLowerCase() === activeColor.toLowerCase();
     d.className = 'pq-swatch' + (isAct ? ' active' : '') + (hex === '#ffffff' ? ' is-white' : '');
     d.style.background = hex;
     d.dataset.color = hex;
     d.title = hex;
     d.onclick = (e) => {
       e.stopPropagation();
-      selectPenColor(hex);
+      selectToolColor(hex);
     };
     container.appendChild(d);
   });
-  updatePenColorIndicator(currentColor);
+  updateAllToolColorDots();
 }
 
-function updatePenColorIndicator(color) {
-  const dot = document.getElementById('pen-color-dot');
-  if (dot) dot.style.background = color;
+function updateAllToolColorDots() {
+  for (const [tool, col] of Object.entries(toolColors)) {
+    const dot = document.getElementById(tool + '-color-dot');
+    if (dot) dot.style.background = col;
+  }
   const badge = document.getElementById('pq-current-badge');
-  if (badge) badge.style.background = color;
+  const targetTool = _activeColorMenuTool || currentTool || 'pen';
+  const activeColor = toolColors[targetTool] || currentColor;
+  if (badge) badge.style.background = activeColor;
   const pqCustom = document.getElementById('pq-custom-color');
-  if (pqCustom) pqCustom.value = color;
+  if (pqCustom) pqCustom.value = activeColor;
 
   document.querySelectorAll('.pq-swatch').forEach(s => {
-    s.classList.toggle('active', (s.dataset.color || '').toLowerCase() === color.toLowerCase());
+    s.classList.toggle('active', (s.dataset.color || '').toLowerCase() === activeColor.toLowerCase());
   });
 }
 
-function selectPenColor(color) {
+function selectToolColor(color) {
+  const tool = _activeColorMenuTool || currentTool || 'pen';
+  toolColors[tool] = color;
   currentColor = color;
+
+  if (['line', 'arrow', 'rect', 'circle'].includes(tool)) {
+    ['line', 'arrow', 'rect', 'circle'].forEach(t => toolColors[t] = color);
+  }
+
+  updateAllToolColorDots();
+
   const customColor = document.getElementById('custom-color');
   if (customColor) customColor.value = color;
 
@@ -2041,44 +2070,81 @@ function selectPenColor(color) {
     s.classList.toggle('active', (s.dataset.color || '').toLowerCase() === color.toLowerCase());
   });
 
-  updatePenColorIndicator(color);
   applyBrushColor();
 
-  if (currentTool !== 'pen') {
-    setTool('pen');
+  if (tool === 'text') {
+    const tfCol = document.getElementById('tf-color');
+    if (tfCol) tfCol.value = color;
+    applyTextProp('fill', color);
   }
 
-  // Smooth close after selection
+  if (currentTool !== tool) {
+    setTool(tool);
+  }
+
   setTimeout(() => {
-    closePenColorMenu();
+    closeToolColorMenu();
   }, 120);
 }
 
-function setQuickPenSize(v) {
+function setQuickToolSize(v) {
   setStrokeWidth(v);
   document.querySelectorAll('.pq-size-pill').forEach(p => {
     p.classList.toggle('active', +p.dataset.size === v);
   });
 }
 
-function openPenColorMenu() {
-  const penBtn = document.getElementById('t-pen');
+function openToolColorMenu(tool) {
+  tool = tool || currentTool || 'pen';
+  _activeColorMenuTool = tool;
+  const btn = document.getElementById('t-' + tool);
   const menu = document.getElementById('pen-quick-menu');
-  if (!penBtn || !menu) return;
+  if (!btn || !menu) return;
 
   if (!menu.querySelector('.pq-swatch')) {
-    buildPenQuickMenu();
+    buildToolQuickMenu();
   }
 
-  updatePenColorIndicator(currentColor);
+  // Update menu title
+  const titleEl = document.getElementById('pq-title');
+  if (titleEl) {
+    const titles = {
+      tr: {
+        pen: 'Kalem Rengi',
+        highlight: 'Vurgulayıcı Rengi',
+        line: 'Çizgi Rengi',
+        arrow: 'Ok Rengi',
+        rect: 'Dikdörtgen Rengi',
+        circle: 'Daire Rengi',
+        text: 'Metin Rengi'
+      },
+      en: {
+        pen: 'Pen Color',
+        highlight: 'Highlighter Color',
+        line: 'Line Color',
+        arrow: 'Arrow Color',
+        rect: 'Rectangle Color',
+        circle: 'Circle Color',
+        text: 'Text Color'
+      }
+    };
+    const lang = (typeof _lang !== 'undefined' && _lang === 'en') ? 'en' : 'tr';
+    titleEl.textContent = titles[lang]?.[tool] || (lang === 'en' ? 'Tool Color' : 'Araç Rengi');
+  }
 
-  document.querySelectorAll('.pq-size-pill').forEach(p => {
+  // Update size pill titles
+  const isHl = tool === 'highlight';
+  const pillSizes = isHl ? [6, 18, 36, 72] : [1, 3, 6, 12];
+  document.querySelectorAll('.pq-size-pill').forEach((p, idx) => {
+    p.title = pillSizes[idx] + 'px';
     p.classList.toggle('active', +p.dataset.size === currentWidth);
   });
 
+  updateAllToolColorDots();
+
   menu.style.display = 'block';
 
-  const btnRect = penBtn.getBoundingClientRect();
+  const btnRect = btn.getBoundingClientRect();
   const menuRect = menu.getBoundingClientRect();
 
   const left = btnRect.right + 10;
@@ -2094,85 +2160,110 @@ function openPenColorMenu() {
   const arrowTop = Math.max(14, Math.min(menuRect.height - 14, (btnRect.top + btnRect.height / 2) - top - 5));
   menu.style.setProperty('--arrow-top', arrowTop + 'px');
 
+  _toolColorMenuOpen = true;
   _penMenuOpen = true;
 }
 
-function closePenColorMenu() {
+function closeToolColorMenu() {
   const menu = document.getElementById('pen-quick-menu');
   if (menu) menu.style.display = 'none';
+  _toolColorMenuOpen = false;
   _penMenuOpen = false;
 }
 
-function togglePenColorMenu() {
-  if (_penMenuOpen) closePenColorMenu();
-  else openPenColorMenu();
+function toggleToolColorMenu(tool) {
+  if (_toolColorMenuOpen && _activeColorMenuTool === tool) {
+    closeToolColorMenu();
+  } else {
+    openToolColorMenu(tool);
+  }
 }
 
-function onPenButtonClick(e) {
-  if (_penLongPressTriggered) {
-    _penLongPressTriggered = false;
+// Aliases for backward compatibility
+function openPenColorMenu() { openToolColorMenu('pen'); }
+function closePenColorMenu() { closeToolColorMenu(); }
+function togglePenColorMenu() { toggleToolColorMenu('pen'); }
+function selectPenColor(color) { selectToolColor(color); }
+function updatePenColorIndicator(color) { updateAllToolColorDots(); }
+function buildPenQuickMenu() { buildToolQuickMenu(); }
+function setQuickPenSize(v) { setQuickToolSize(v); }
+function onPenButtonClick(e) { onColorableToolClick(e, 'pen'); }
+
+function onColorableToolClick(e, tool) {
+  if (_toolLongPressTriggered) {
+    _toolLongPressTriggered = false;
     return;
   }
-  if (currentTool === 'pen') {
-    togglePenColorMenu();
+  if (currentTool === tool) {
+    toggleToolColorMenu(tool);
   } else {
-    setTool('pen');
-    closePenColorMenu();
+    setTool(tool);
+    closeToolColorMenu();
   }
 }
 
-(function initPenButtonListeners() {
-  const penBtn = document.getElementById('t-pen');
-  if (!penBtn) return;
+function initColorableToolListeners() {
+  const tools = ['pen', 'highlight', 'line', 'arrow', 'rect', 'circle', 'text'];
+  tools.forEach(tool => {
+    const btn = document.getElementById('t-' + tool);
+    if (!btn || btn._hasColorMenuListener) return;
+    btn._hasColorMenuListener = true;
 
-  const startPress = (e) => {
-    if (e.type === 'mousedown' && e.button !== 0) return;
-    _penLongPressTriggered = false;
-    if (_penPressTimer) clearTimeout(_penPressTimer);
-    _penPressTimer = setTimeout(() => {
-      _penLongPressTriggered = true;
-      if (currentTool !== 'pen') {
-        setTool('pen');
+    btn.onclick = (e) => onColorableToolClick(e, tool);
+
+    const startPress = (e) => {
+      if (e.type === 'mousedown' && e.button !== 0) return;
+      _toolLongPressTriggered = false;
+      if (_toolPressTimer) clearTimeout(_toolPressTimer);
+      _toolPressTimer = setTimeout(() => {
+        _toolLongPressTriggered = true;
+        if (currentTool !== tool) {
+          setTool(tool);
+        }
+        openToolColorMenu(tool);
+      }, 350);
+    };
+
+    const cancelPress = () => {
+      if (_toolPressTimer) {
+        clearTimeout(_toolPressTimer);
+        _toolPressTimer = null;
       }
-      openPenColorMenu();
-    }, 350);
-  };
+    };
 
-  const cancelPress = () => {
-    if (_penPressTimer) {
-      clearTimeout(_penPressTimer);
-      _penPressTimer = null;
-    }
-  };
+    btn.addEventListener('mousedown', startPress);
+    btn.addEventListener('mouseup', cancelPress);
+    btn.addEventListener('mouseleave', cancelPress);
 
-  penBtn.addEventListener('mousedown', startPress);
-  penBtn.addEventListener('mouseup', cancelPress);
-  penBtn.addEventListener('mouseleave', cancelPress);
+    btn.addEventListener('touchstart', startPress, { passive: true });
+    btn.addEventListener('touchend', cancelPress);
+    btn.addEventListener('touchcancel', cancelPress);
 
-  penBtn.addEventListener('touchstart', startPress, { passive: true });
-  penBtn.addEventListener('touchend', cancelPress);
-  penBtn.addEventListener('touchcancel', cancelPress);
-
-  penBtn.addEventListener('contextmenu', e => {
-    e.preventDefault();
-    if (currentTool !== 'pen') setTool('pen');
-    openPenColorMenu();
+    btn.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      if (currentTool !== tool) setTool(tool);
+      openToolColorMenu(tool);
+    });
   });
 
-  document.addEventListener('mousedown', e => {
-    if (!_penMenuOpen) return;
-    const menu = document.getElementById('pen-quick-menu');
-    if (menu && !menu.contains(e.target) && !penBtn.contains(e.target)) {
-      closePenColorMenu();
-    }
-  });
+  if (!document._hasToolColorMenuDocListeners) {
+    document._hasToolColorMenuDocListeners = true;
+    document.addEventListener('mousedown', e => {
+      if (!_toolColorMenuOpen) return;
+      const menu = document.getElementById('pen-quick-menu');
+      const activeBtn = document.getElementById('t-' + _activeColorMenuTool);
+      if (menu && !menu.contains(e.target) && (!activeBtn || !activeBtn.contains(e.target))) {
+        closeToolColorMenu();
+      }
+    });
 
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && _penMenuOpen) {
-      closePenColorMenu();
-    }
-  });
-})();
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && _toolColorMenuOpen) {
+        closeToolColorMenu();
+      }
+    });
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════
    SLIDERS
@@ -2740,6 +2831,10 @@ function toggleRightPanel() {
 ═══════════════════════════════════════════════════════════ */
 function setTool(tool) {
   currentTool = tool;
+  if (typeof toolColors !== 'undefined' && toolColors[tool]) {
+    currentColor = toolColors[tool];
+    updateAllToolColorDots();
+  }
   document.querySelectorAll('.t-btn[data-tool]').forEach(b => b.classList.remove('active'));
   const btn = document.getElementById('t-' + tool);
   if (btn) btn.classList.add('active');
