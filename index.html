@@ -41,6 +41,7 @@
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -382,6 +383,18 @@
        container stays pointer-events:none so empty areas pass through to Fabric */
     #pdf-text-layer.text-selectable { z-index:20; }
     #pdf-text-layer.text-selectable span { pointer-events:auto; user-select:text; cursor:text; }
+    #pdf-text-layer.text-edit-mode { z-index:22; pointer-events:auto; }
+    #pdf-text-layer.text-edit-mode span {
+      pointer-events:auto !important;
+      cursor:text !important;
+      user-select:none !important;
+      transition:background .08s, outline .08s;
+    }
+    #pdf-text-layer.text-edit-mode span:hover {
+      outline:1.5px dashed #2563eb !important;
+      background:rgba(37,99,235,0.16) !important;
+      border-radius:2px !important;
+    }
 
     /* ── SNIP OVERLAY & ACTION BAR ─────────────── */
     #snip-overlay {
@@ -1039,7 +1052,7 @@
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
     <span data-i18n="open">PDF Aç</span>
   </button>
-  <input type="file" id="file-input" accept=".pdf,image/*,.docx" style="display:none">
+  <input type="file" id="file-input" accept=".pdf,image/*,.docx,.epub" style="display:none">
   <input type="file" id="stamp-input" accept="image/*" style="display:none">
   <span id="file-name" title="Adı değiştirmek için tıklayın" onclick="startRenameFile()">— dosya seçilmedi —</span>
   <input id="file-name-input" type="text" onblur="endRenameFile()" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){cancelRenameFile();}">
@@ -1140,6 +1153,10 @@
     <button class="t-btn" id="t-text" data-tool="text" data-tip="Metin (T) [Basılı tut: Renk]" data-tip-en="Text (T) [Hold: Color]">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
       <span class="tool-color-dot" id="text-color-dot" style="background:#111827;"></span>
+    </button>
+    <button class="t-btn" id="t-edit-pdf-text" data-tool="edit-pdf-text" data-tip="PDF Metnini Düzenle (D)" data-tip-en="Edit PDF Text (D)" onclick="setTool('edit-pdf-text')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      <span class="tool-color-dot" id="edit-pdf-text-color-dot" style="background:#111827;"></span>
     </button>
     <div class="t-sep"></div>
     <button class="t-btn" id="t-stamp" data-tip="Resim Damgası (I)" data-tip-en="Image Stamp (I)" onclick="openStampPicker()">
@@ -1252,6 +1269,15 @@
       <button class="act-btn save-all" onclick="savePDF()" data-i18n="panel-pdf">PDF – Tüm Sayfalar</button>
     </div>
     <div class="panel-section">
+      <div class="panel-label">Metin Düzenleme</div>
+      <button class="act-btn" onclick="setTool('edit-pdf-text')" style="background:#2563eb;color:#fff;margin-bottom:6px;font-weight:600;">
+        ✏️ Yazıya Tıkla & Düzenle
+      </button>
+      <button class="act-btn" onclick="convertAllPageTextToEditable()" style="background:#f8fafc;color:#334155;border:1px solid #cbd5e1;font-size:11px;">
+        📄 Tüm Sayfayı Düzenlenebilir Yap
+      </button>
+    </div>
+    <div class="panel-section">
       <div class="panel-label" data-i18n="panel-reset">Sıfırla</div>
       <button class="act-btn reset-pg"  onclick="confirmReset()" data-i18n="panel-reset-page">Bu Sayfayı Temizle</button>
       <button class="act-btn reset-all" onclick="confirmResetAll()" data-i18n="panel-reset-all">Tümünü Temizle</button>
@@ -1268,6 +1294,7 @@
         <div class="kbd-row"><span data-i18n="kbd-rect">Dikdörtgen</span><kbd>R</kbd></div>
         <div class="kbd-row"><span data-i18n="kbd-circle">Daire</span><kbd>C</kbd></div>
         <div class="kbd-row"><span data-i18n="kbd-text">Metin</span><kbd>T</kbd></div>
+        <div class="kbd-row"><span data-i18n="kbd-edit-text">Metin Düzenle</span><kbd>D</kbd></div>
         <div class="kbd-row"><span data-i18n="kbd-stamp">Resim Damgası</span><kbd>I</kbd></div>
 <div class="kbd-row"><span data-i18n="kbd-sig">İmza</span><kbd>S</kbd></div>
         <div class="kbd-row"><span data-i18n="kbd-snip">Alan Kopyala</span><kbd>X</kbd></div>
@@ -1302,9 +1329,14 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>
           + Word Ekle
         </button>
+        <button class="org-act-btn" onclick="orgAddEpub()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          + EPUB Ekle
+        </button>
         <input type="file" id="org-pdf-input"  accept=".pdf"       style="display:none">
         <input type="file" id="org-img-input"  accept="image/*"    style="display:none">
         <input type="file" id="org-word-input" accept=".docx,.doc" style="display:none">
+        <input type="file" id="org-epub-input" accept=".epub"      style="display:none">
         <button class="org-act-btn apply" onclick="applyOrganize()">✓ Uygula</button>
         <button class="org-act-btn cancel" onclick="closeOrganize()">✕ İptal</button>
       </div>
@@ -1614,6 +1646,9 @@
 <!-- ── WORD RENDER CONTAINER (hidden) ─────────────────────── -->
 <div id="word-render-host" style="position:fixed;left:-9999px;top:0;width:794px;background:#fff;padding:48px 56px;font-family:Georgia,serif;font-size:14px;line-height:1.6;color:#111;pointer-events:none;z-index:-1;"></div>
 
+<!-- ── EPUB RENDER CONTAINER (hidden) ─────────────────────── -->
+<div id="epub-render-host" style="position:fixed;left:-9999px;top:0;width:794px;background:#fff;pointer-events:none;z-index:-1;"></div>
+
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1836,11 +1871,11 @@ const I18N = {
     'panel-reset':'Sıfırla','panel-reset-page':'Bu Sayfayı Temizle',
     'panel-reset-all':'Tümünü Temizle','panel-kbd':'Kısayollar',
     'prev':'◀ Önceki','next':'Sonraki ▶',
-    'drop-main':'PDF, Resim veya Word dosyasını sürükleyin','drop-sub':'veya tıklayarak seçin (.pdf, .docx, resim)',
+    'drop-main':'PDF, EPUB, Resim veya Word dosyasını sürükleyin','drop-sub':'veya tıklayarak seçin (.pdf, .epub, .docx, resim)',
     'rot-go':'↺ git','rot-reset':'⊘ sıfır',
     'kbd-select':'Seç','kbd-pen':'Kalem','kbd-highlight':'Vurgula',
     'kbd-eraser':'Silgi','kbd-line':'Çizgi','kbd-arrow':'Ok',
-    'kbd-rect':'Dikdörtgen','kbd-circle':'Daire','kbd-text':'Metin',
+    'kbd-rect':'Dikdörtgen','kbd-circle':'Daire','kbd-text':'Metin','kbd-edit-text':'PDF Metnini Düzenle',
     'kbd-stamp':'Resim Damgası','kbd-sig':'İmza','kbd-snip':'Alan Kopyala','kbd-translate':'Çeviri Modu',
     'kbd-fullscreen':'Tam Ekran','kbd-cancel':'İptal','kbd-save':'Kaydet PDF',
     'kbd-page':'Sayfa ◀▶',
@@ -1874,11 +1909,11 @@ const I18N = {
     'panel-reset':'Reset','panel-reset-page':'Clear This Page',
     'panel-reset-all':'Clear All','panel-kbd':'Shortcuts',
     'prev':'◀ Previous','next':'Next ▶',
-    'drop-main':'Drop PDF, image or Word file here','drop-sub':'or click to select (.pdf, .docx, image)',
+    'drop-main':'Drop PDF, EPUB, image or Word file here','drop-sub':'or click to select (.pdf, .epub, .docx, image)',
     'rot-go':'↺ go','rot-reset':'⊘ reset',
     'kbd-select':'Select','kbd-pen':'Pen','kbd-highlight':'Highlight',
     'kbd-eraser':'Eraser','kbd-line':'Line','kbd-arrow':'Arrow',
-    'kbd-rect':'Rectangle','kbd-circle':'Circle','kbd-text':'Text',
+    'kbd-rect':'Rectangle','kbd-circle':'Circle','kbd-text':'Text','kbd-edit-text':'Edit PDF Text',
     'kbd-stamp':'Image Stamp','kbd-sig':'Signature','kbd-snip':'Copy Area','kbd-translate':'Translate',
     'kbd-fullscreen':'Fullscreen','kbd-cancel':'Cancel','kbd-save':'Save PDF',
     'kbd-page':'Page ◀▶',
@@ -1963,7 +1998,8 @@ const toolColors = {
   arrow: '#e94560',
   rect: '#e94560',
   circle: '#e94560',
-  text: '#111827'
+  text: '#111827',
+  'edit-pdf-text': '#111827'
 };
 
 let pageAnnotations = {};
@@ -2343,7 +2379,9 @@ async function onDrop(e) {
 
 async function loadFile(file) {
   const ext = (file.name.split('.').pop() || '').toLowerCase();
-  if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || ext === 'docx') {
+  if (file.type === 'application/epub+zip' || ext === 'epub') {
+    return _loadEpubFile(file);
+  } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || ext === 'docx') {
     return _loadWordFile(file);
   } else if (file.type.startsWith('image/') || ['jpg','jpeg','png','gif','bmp','webp','svg','avif'].includes(ext)) {
     return _loadImageFile(file);
@@ -2630,6 +2668,426 @@ async function _loadWordFile(file) {
   document.getElementById('drop-zone').style.display = 'none';
   document.getElementById('canvas-wrapper').style.display = 'block';
   updateNav(); buildThumbTray(); generateThumbnails();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EPUB LOADING & RENDERING ENGINE
+═══════════════════════════════════════════════════════════ */
+function _resolveZipPath(baseDir, relativePath) {
+  if (!relativePath) return '';
+  if (relativePath.startsWith('/')) relativePath = relativePath.slice(1);
+  const parts = (baseDir ? baseDir.replace(/\\/g, '/') : '').split('/').filter(Boolean);
+  const relParts = relativePath.replace(/\\/g, '/').split('/').filter(Boolean);
+  for (const part of relParts) {
+    if (part === '.') continue;
+    if (part === '..') {
+      if (parts.length > 0) parts.pop();
+    } else {
+      parts.push(part);
+    }
+  }
+  return parts.join('/');
+}
+
+function _getMimeType(ext) {
+  const m = {
+    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+    'png': 'image/png', 'gif': 'image/gif',
+    'webp': 'image/webp', 'svg': 'image/svg+xml'
+  };
+  return m[ext.toLowerCase()] || 'application/octet-stream';
+}
+
+async function _resolveCssUrls(cssText, cssDir, zip) {
+  const urlRegex = /url\(\s*['"]?([^'")]+)['"]?\s*\)/gi;
+  let match;
+  const replacements = [];
+  while ((match = urlRegex.exec(cssText)) !== null) {
+    const rawUrl = match[1];
+    if (!rawUrl.startsWith('data:') && !rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+      const cleanUrl = decodeURIComponent(rawUrl.split('#')[0].split('?')[0]);
+      const resPath = _resolveZipPath(cssDir, cleanUrl);
+      const f = zip.file(resPath) || zip.file(cleanUrl);
+      if (f) {
+        try {
+          const ext = (resPath.split('.').pop() || 'png').toLowerCase();
+          const mime = _getMimeType(ext);
+          const b64 = await f.async('base64');
+          replacements.push({ target: match[0], dataUrl: `url("data:${mime};base64,${b64}")` });
+        } catch (_) {}
+      }
+    }
+  }
+  for (const rep of replacements) {
+    cssText = cssText.split(rep.target).join(rep.dataUrl);
+  }
+  return cssText;
+}
+
+function _createPageSheet(bookTitle, pageNum, customStyles) {
+  const page = document.createElement('div');
+  page.className = 'epub-page-sheet';
+  page.style.cssText = 'width:794px;height:1123px;box-sizing:border-box;padding:56px 64px 60px 64px;background:#ffffff;color:#1a1a1a;font-family:Georgia,"Times New Roman",Cambria,serif;font-size:15px;line-height:1.68;position:relative;overflow:hidden;word-break:break-word;';
+
+  if (customStyles) {
+    const st = document.createElement('style');
+    st.textContent = customStyles;
+    page.appendChild(st);
+  }
+
+  const content = document.createElement('div');
+  content.className = 'epub-page-content';
+  content.style.cssText = 'width:100%;height:970px;overflow:hidden;box-sizing:border-box;';
+  page.appendChild(content);
+
+  const footer = document.createElement('div');
+  footer.className = 'epub-page-footer';
+  footer.style.cssText = 'position:absolute;bottom:22px;left:64px;right:64px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#888888;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;border-top:1px solid #eef0f2;padding-top:8px;pointer-events:none;';
+
+  const titleSpan = document.createElement('span');
+  titleSpan.textContent = bookTitle || '';
+  titleSpan.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:480px;';
+
+  const numSpan = document.createElement('span');
+  numSpan.textContent = String(pageNum);
+
+  footer.appendChild(titleSpan);
+  footer.appendChild(numSpan);
+  page.appendChild(footer);
+
+  return { page, content, numSpan };
+}
+
+function _splitLargeElement(el, curPageRef, bookTitle, customStyles, pages, host, getNextPageNum, maxH) {
+  if (el.nodeType === 1 && (el.tagName === 'P' || el.tagName === 'DIV' || el.tagName === 'BLOCKQUOTE')) {
+    const words = (el.innerText || el.textContent || '').split(/\s+/).filter(Boolean);
+    if (words.length > 30) {
+      curPageRef.content.removeChild(el);
+      let chunkWords = [];
+      let tempEl = document.createElement(el.tagName);
+      tempEl.className = el.className;
+      tempEl.style.cssText = el.style.cssText;
+      curPageRef.content.appendChild(tempEl);
+
+      for (let w = 0; w < words.length; w++) {
+        chunkWords.push(words[w]);
+        tempEl.textContent = chunkWords.join(' ');
+        if (curPageRef.content.scrollHeight > maxH && chunkWords.length > 1) {
+          chunkWords.pop();
+          tempEl.textContent = chunkWords.join(' ');
+
+          const nextNum = getNextPageNum();
+          const newPage = _createPageSheet(bookTitle, nextNum, customStyles);
+          pages.push(newPage.page);
+          host.appendChild(newPage.page);
+          curPageRef.page = newPage.page;
+          curPageRef.content = newPage.content;
+
+          tempEl = document.createElement(el.tagName);
+          tempEl.className = el.className;
+          tempEl.style.cssText = el.style.cssText;
+          curPageRef.content.appendChild(tempEl);
+          chunkWords = [words[w]];
+          tempEl.textContent = chunkWords.join(' ');
+        }
+      }
+    }
+  }
+}
+
+function _paginateChapter(nodes, customStyles, bookTitle, getNextPageNum) {
+  const pages = [];
+  let curPageNum = getNextPageNum();
+  let curPageObj = _createPageSheet(bookTitle, curPageNum, customStyles);
+  pages.push(curPageObj.page);
+
+  const host = document.getElementById('epub-render-host') || document.body;
+  host.appendChild(curPageObj.page);
+
+  const CONTENT_MAX_H = 970;
+
+  for (let i = 0; i < nodes.length; i++) {
+    const origNode = nodes[i];
+    const nodeClone = origNode.cloneNode(true);
+
+    if (nodeClone.nodeType === 1) {
+      if (nodeClone.tagName === 'IMG') {
+        nodeClone.style.maxWidth = '100%';
+        nodeClone.style.maxHeight = '920px';
+        nodeClone.style.height = 'auto';
+        nodeClone.style.display = 'block';
+        nodeClone.style.margin = '16px auto';
+      }
+      nodeClone.querySelectorAll?.('img').forEach(im => {
+        im.style.maxWidth = '100%';
+        im.style.maxHeight = '920px';
+        im.style.height = 'auto';
+        im.style.display = 'block';
+        im.style.margin = '16px auto';
+      });
+    }
+
+    curPageObj.content.appendChild(nodeClone);
+
+    if (curPageObj.content.scrollHeight > CONTENT_MAX_H) {
+      if (curPageObj.content.children.length > 1) {
+        curPageObj.content.removeChild(nodeClone);
+        curPageNum = getNextPageNum();
+        curPageObj = _createPageSheet(bookTitle, curPageNum, customStyles);
+        pages.push(curPageObj.page);
+        host.appendChild(curPageObj.page);
+
+        curPageObj.content.appendChild(nodeClone);
+
+        if (curPageObj.content.scrollHeight > CONTENT_MAX_H) {
+          _splitLargeElement(nodeClone, curPageObj, bookTitle, customStyles, pages, host, getNextPageNum, CONTENT_MAX_H);
+        }
+      } else {
+        _splitLargeElement(nodeClone, curPageObj, bookTitle, customStyles, pages, host, getNextPageNum, CONTENT_MAX_H);
+      }
+    }
+  }
+
+  host.innerHTML = '';
+  return pages;
+}
+
+async function _renderEpubToPages(file, onProgress) {
+  if (typeof JSZip === 'undefined') {
+    throw new Error('JSZip kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin.');
+  }
+  const zip = await JSZip.loadAsync(file);
+
+  let opfPath = '';
+  if (zip.file('META-INF/container.xml')) {
+    try {
+      const cXml = await zip.file('META-INF/container.xml').async('text');
+      const cDoc = new DOMParser().parseFromString(cXml, 'application/xml');
+      const rf = cDoc.querySelector('rootfile');
+      if (rf) opfPath = rf.getAttribute('full-path') || '';
+    } catch (_) {}
+  }
+  if (!opfPath) {
+    const opfKey = Object.keys(zip.files).find(k => k.toLowerCase().endsWith('.opf'));
+    if (opfKey) opfPath = opfKey;
+  }
+  if (!opfPath || !zip.file(opfPath)) {
+    throw new Error('EPUB geçerli bir paket (OPF) dosyası içermiyor.');
+  }
+
+  const opfText = await zip.file(opfPath).async('text');
+  const opfDoc = new DOMParser().parseFromString(opfText, 'application/xml');
+  const opfDir = opfPath.includes('/') ? opfPath.substring(0, opfPath.lastIndexOf('/') + 1) : '';
+
+  let bookTitle = '';
+  const titleEl = opfDoc.getElementsByTagNameNS('*', 'title')[0] || opfDoc.querySelector('dc\\:title, title');
+  if (titleEl && titleEl.textContent) {
+    bookTitle = titleEl.textContent.trim();
+  }
+
+  const manifest = new Map();
+  const items = opfDoc.querySelectorAll('manifest > item');
+  items.forEach(it => {
+    const id = it.getAttribute('id');
+    const href = it.getAttribute('href');
+    const mediaType = it.getAttribute('media-type') || '';
+    if (id && href) {
+      const cleanHref = decodeURIComponent(href.split('#')[0].split('?')[0]);
+      manifest.set(id, {
+        fullPath: _resolveZipPath(opfDir, cleanHref),
+        mediaType: mediaType.toLowerCase()
+      });
+    }
+  });
+
+  const itemrefs = opfDoc.querySelectorAll('spine > itemref');
+  const spine = [];
+  itemrefs.forEach(ir => {
+    const idref = ir.getAttribute('idref');
+    const it = manifest.get(idref);
+    if (it && zip.file(it.fullPath)) {
+      spine.push(it);
+    }
+  });
+
+  if (spine.length === 0) {
+    manifest.forEach(it => {
+      if ((it.mediaType.includes('xhtml') || it.mediaType.includes('html')) && zip.file(it.fullPath)) {
+        spine.push(it);
+      }
+    });
+  }
+
+  if (spine.length === 0) {
+    throw new Error('EPUB içerisinde okunabilir bölüm bulunamadı.');
+  }
+
+  const host = document.getElementById('epub-render-host') || document.body;
+  host.innerHTML = '';
+  host.style.display = 'block';
+
+  const generatedPages = [];
+  const PAGE_W = 794;
+  const PAGE_H = 1123;
+  let globalPageNum = 1;
+
+  for (let sIdx = 0; sIdx < spine.length; sIdx++) {
+    const chItem = spine[sIdx];
+    if (onProgress) {
+      onProgress(sIdx + 1, spine.length, `Bölüm ${sIdx + 1} / ${spine.length} işleniyor… (Sayfa ${globalPageNum})`);
+    }
+
+    const chDir = chItem.fullPath.includes('/') ? chItem.fullPath.substring(0, chItem.fullPath.lastIndexOf('/') + 1) : '';
+    const chRawHtml = await zip.file(chItem.fullPath).async('text');
+    const chDoc = new DOMParser().parseFromString(chRawHtml, 'text/html');
+
+    const links = Array.from(chDoc.querySelectorAll('link[rel="stylesheet"], link[type*="css"]'));
+    for (const link of links) {
+      const href = link.getAttribute('href');
+      if (href && !href.startsWith('http://') && !href.startsWith('https://')) {
+        const cleanHref = decodeURIComponent(href.split('#')[0].split('?')[0]);
+        const cssPath = _resolveZipPath(chDir, cleanHref);
+        const cssFile = zip.file(cssPath) || zip.file(cleanHref);
+        if (cssFile) {
+          try {
+            let cssText = await cssFile.async('text');
+            const cssDir = cssPath.includes('/') ? cssPath.substring(0, cssPath.lastIndexOf('/') + 1) : '';
+            cssText = await _resolveCssUrls(cssText, cssDir, zip);
+            const styleEl = chDoc.createElement('style');
+            styleEl.textContent = cssText;
+            link.parentNode.replaceChild(styleEl, link);
+          } catch (_) {}
+        }
+      }
+    }
+
+    const imgEls = Array.from(chDoc.querySelectorAll('img, image'));
+    for (const imgEl of imgEls) {
+      const rawSrc = imgEl.getAttribute('src') || imgEl.getAttribute('xlink:href') || imgEl.getAttribute('href');
+      if (rawSrc && !rawSrc.startsWith('data:') && !rawSrc.startsWith('http://') && !rawSrc.startsWith('https://')) {
+        const cleanSrc = decodeURIComponent(rawSrc.split('#')[0].split('?')[0]);
+        const imgPath = _resolveZipPath(chDir, cleanSrc);
+        const imgZip = zip.file(imgPath) || zip.file(cleanSrc);
+        if (imgZip) {
+          try {
+            const ext = (imgPath.split('.').pop() || 'png').toLowerCase();
+            const mime = _getMimeType(ext);
+            const b64 = await imgZip.async('base64');
+            const dataUrl = `data:${mime};base64,${b64}`;
+            if (imgEl.tagName.toLowerCase() === 'image') {
+              imgEl.setAttribute('href', dataUrl);
+              imgEl.removeAttribute('xlink:href');
+            } else {
+              imgEl.setAttribute('src', dataUrl);
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
+    let customStyles = '';
+    chDoc.querySelectorAll('style').forEach(s => { customStyles += s.textContent + '\n'; });
+
+    const body = chDoc.body || chDoc.documentElement;
+    let contentNodes = Array.from(body.childNodes);
+    while (contentNodes.length === 1 && contentNodes[0].nodeType === 1 &&
+           ['DIV', 'SECTION', 'ARTICLE', 'MAIN'].includes(contentNodes[0].tagName)) {
+      contentNodes = Array.from(contentNodes[0].childNodes);
+    }
+
+    const meaningfulNodes = contentNodes.filter(n => {
+      if (n.nodeType === 3) return n.textContent.trim().length > 0;
+      if (n.nodeType === 1) return true;
+      return false;
+    });
+
+    if (meaningfulNodes.length === 0) continue;
+
+    const chapterPages = _paginateChapter(meaningfulNodes, customStyles, bookTitle, () => globalPageNum++);
+
+    for (const pageDiv of chapterPages) {
+      host.appendChild(pageDiv);
+      await new Promise(r => setTimeout(r, 60));
+      const cvs = await html2canvas(pageDiv, {
+        scale: 1.5,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      host.removeChild(pageDiv);
+      const url = cvs.toDataURL('image/jpeg', 0.90);
+      generatedPages.push({
+        url: url,
+        width: PAGE_W,
+        height: PAGE_H
+      });
+    }
+  }
+
+  host.innerHTML = '';
+  host.style.display = 'none';
+
+  return {
+    bookTitle: bookTitle || file.name.replace(/\.epub$/i, ''),
+    pages: generatedPages
+  };
+}
+
+async function _loadEpubFile(file) {
+  const overlay = document.getElementById('progress-overlay');
+  const bar = document.getElementById('progress-bar');
+  const txt = document.getElementById('progress-text');
+  if (overlay) overlay.classList.add('show');
+  if (txt) txt.textContent = 'EPUB dosyası açılıyor…';
+  if (bar) bar.style.width = '10%';
+
+  try {
+    const res = await _renderEpubToPages(file, (curr, total, msg) => {
+      if (txt) txt.textContent = msg;
+      if (bar) bar.style.width = Math.round((curr / total) * 90) + '%';
+    });
+
+    if (!res.pages || res.pages.length === 0) {
+      throw new Error('EPUB içeriğinden sayfa oluşturulamadı.');
+    }
+
+    document.getElementById('file-name').textContent = res.bookTitle;
+    pages = [];
+    pageAnnotations = {};
+    currentTool = 'select';
+    if (fc) fc.clear();
+
+    for (let i = 0; i < res.pages.length; i++) {
+      const p = res.pages[i];
+      pages.push({
+        type: 'image',
+        imageUrl: p.url,
+        width: p.width,
+        height: p.height,
+        thumbnail: null,
+        rotation: 0
+      });
+    }
+
+    currentPage = 1;
+    _searchQuery = ''; _searchResults = []; _searchCurrent = -1;
+    if (_searchOpen) closeSearch();
+    fitWidthScale();
+    await renderPage(1);
+    document.getElementById('drop-zone').style.display = 'none';
+    document.getElementById('canvas-wrapper').style.display = 'block';
+    updateNav();
+    buildThumbTray();
+    generateThumbnails();
+
+    showToast(_lang === 'tr' ? `EPUB açıldı (${pages.length} sayfa) ✓` : `EPUB loaded (${pages.length} pages) ✓`);
+  } catch (err) {
+    console.error('EPUB yükleme hatası:', err);
+    showToast(_lang === 'tr' ? 'EPUB açılamadı: ' + (err.message || 'Hata') : 'Failed to open EPUB: ' + (err.message || 'Error'));
+    throw err;
+  } finally {
+    if (overlay) overlay.classList.remove('show');
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -2929,8 +3387,8 @@ function setTool(tool) {
   fc.isDrawingMode = false; fc.selection = false; fc.defaultCursor = 'crosshair';
   fc.off('mouse:down'); fc.off('mouse:move'); fc.off('mouse:up');
   fc.getObjects().forEach(o => { o.selectable = false; o.evented = false; });
-  // Text layer: full in translate mode, selectable-only in select mode, off otherwise
-  setTextLayerActive(translateMode ? true : (tool === 'select' ? 'select' : false));
+  // Text layer: full in translate mode, edit-pdf-text in edit mode, selectable-only in select mode, off otherwise
+  setTextLayerActive(translateMode ? true : (tool === 'select' ? 'select' : (tool === 'edit-pdf-text' ? 'edit-pdf-text' : false)));
   switch (tool) {
     case 'select':
       fc.selection = true; fc.defaultCursor = 'default';
@@ -2955,6 +3413,13 @@ function setTool(tool) {
         if (o.type === 'i-text' || o.type === 'textbox') { o.selectable = true; o.evented = true; }
       });
       setupText(); break;
+    case 'edit-pdf-text':
+      fc.selection = true; fc.defaultCursor = 'text';
+      fc.getObjects().forEach(o => {
+        if (o.type === 'i-text' || o.type === 'textbox') { o.selectable = true; o.evented = true; }
+      });
+      setupEditPdfText();
+      break;
   }
 }
 
@@ -3069,8 +3534,25 @@ function bindTextEvents(t) {
   });
   t.on('editing:exited', () => {
     if (!t.text || t.text.trim() === '') {
-      fc.remove(t);
-      fc.renderAll();
+      if (t._isPdfEditedText) {
+        // Text was cleared to erase it: replace with whiteout rectangle
+        const rect = new fabric.Rect({
+          left: t._origPdfLeft !== undefined ? t._origPdfLeft : t.left,
+          top: t._origPdfTop !== undefined ? t._origPdfTop : t.top,
+          width: Math.max(t._origPdfWidth || t.width || 20, 10),
+          height: Math.max(t._origPdfHeight || t.height || 14, 10),
+          fill: t.backgroundColor || '#ffffff',
+          selectable: true,
+          evented: true
+        });
+        fc.remove(t);
+        fc.add(rect);
+        fc.renderAll();
+        pushUndo();
+      } else {
+        fc.remove(t);
+        fc.renderAll();
+      }
       hideTextFormatBar();
       _skipNextTextCreate = true;
       setTimeout(() => { _skipNextTextCreate = false; }, 200);
@@ -3105,6 +3587,13 @@ function setupText() {
     if (opt.target) return; // other objects – ignore
     if (_skipNextTextCreate) { _skipNextTextCreate = false; return; }
 
+    // If clicking on existing PDF text, edit that text instead of writing on top
+    const spanHit = getPdfSpanAtClientPoint(opt.e.clientX, opt.e.clientY);
+    if (spanHit) {
+      convertPdfSpanToEditableText(spanHit, opt.e.clientX, opt.e.clientY);
+      return;
+    }
+
     const p   = getCanvasPointer(opt.e);
     const sz  = Math.max(currentWidth * 5, 16);
     const col = document.getElementById('tf-color')?.value || currentColor;
@@ -3126,6 +3615,212 @@ function setupText() {
     fc.renderAll();
     showTextFormatBar(t);
   });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DIRECT PDF TEXT EDITING ENGINE
+═══════════════════════════════════════════════════════════ */
+function setupEditPdfText() {
+  fc.defaultCursor = 'text';
+  showToast(_lang === 'tr' ? 'Düzenlemek istediğiniz PDF yazısına tıklayın' : 'Click the PDF text you want to edit');
+}
+
+function getPdfSpanAtClientPoint(clientX, clientY) {
+  const tl = document.getElementById('pdf-text-layer');
+  if (!tl) return null;
+  const spans = Array.from(tl.querySelectorAll('span'));
+  for (const s of spans) {
+    if (!s.textContent || !s.textContent.trim()) continue;
+    const r = s.getBoundingClientRect();
+    if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+      return s;
+    }
+  }
+  return null;
+}
+
+function convertPdfSpanToEditableText(targetSpan, clientX, clientY) {
+  const tl = document.getElementById('pdf-text-layer');
+  if (!tl || !fc) return null;
+  const allSpans = Array.from(tl.querySelectorAll('span'));
+  if (!allSpans.length) return null;
+
+  const targetTop = targetSpan.offsetTop;
+  const targetH = targetSpan.offsetHeight || 16;
+  const lineSpans = allSpans.filter(s => {
+    const diff = Math.abs(s.offsetTop - targetTop);
+    return diff <= Math.max(5, targetH * 0.4);
+  });
+  lineSpans.sort((a, b) => a.offsetLeft - b.offsetLeft);
+
+  let fullText = '';
+  for (let i = 0; i < lineSpans.length; i++) {
+    const s = lineSpans[i];
+    if (i > 0) {
+      const prev = lineSpans[i - 1];
+      const gap = s.offsetLeft - (prev.offsetLeft + prev.offsetWidth);
+      if (gap > 4 && !fullText.endsWith(' ') && !s.textContent.startsWith(' ')) {
+        fullText += ' ';
+      }
+    }
+    fullText += s.textContent;
+  }
+  fullText = fullText.trim();
+  if (!fullText) return null;
+
+  const left = Math.min(...lineSpans.map(s => s.offsetLeft));
+  const top = Math.min(...lineSpans.map(s => s.offsetTop));
+  const right = Math.max(...lineSpans.map(s => s.offsetLeft + s.offsetWidth));
+  const bottom = Math.max(...lineSpans.map(s => s.offsetTop + s.offsetHeight));
+  const width = Math.max(right - left, 16);
+  const height = Math.max(bottom - top, 14);
+
+  const compStyle = window.getComputedStyle(targetSpan);
+  const fontSize = parseFloat(compStyle.fontSize) || Math.round(height * 0.85);
+  const isBold = compStyle.fontWeight === 'bold' || parseInt(compStyle.fontWeight) >= 600;
+  const isItalic = compStyle.fontStyle === 'italic';
+  const fam = compStyle.fontFamily || '';
+  const fontFamily = (fam.includes('Serif') || fam.includes('Times') || fam.includes('Georgia')) ? 'Georgia' : 'Arial';
+
+  let bgColor = '#ffffff';
+  try {
+    const ctx = fc.lowerCanvasEl.getContext('2d');
+    const sx = Math.max(1, Math.min(Math.round(left - 2), fc.width - 2));
+    const sy = Math.max(1, Math.min(Math.round(top - 2), fc.height - 2));
+    const pixel = ctx.getImageData(sx, sy, 1, 1).data;
+    if (pixel[3] > 0) {
+      bgColor = '#' + [pixel[0], pixel[1], pixel[2]].map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (_) {}
+
+  lineSpans.forEach(s => { s.style.visibility = 'hidden'; });
+
+  const t = new fabric.IText(fullText, {
+    left: Math.round(left),
+    top: Math.round(top),
+    fontSize: Math.round(fontSize),
+    fontFamily: fontFamily,
+    fontWeight: isBold ? 'bold' : 'normal',
+    fontStyle: isItalic ? 'italic' : 'normal',
+    fill: currentColor && currentColor !== '#e94560' ? currentColor : '#111827',
+    backgroundColor: bgColor,
+    padding: 2,
+    lineHeight: 1.14,
+    selectable: true,
+    evented: true,
+    editable: true,
+    _isPdfEditedText: true,
+    _origPdfText: fullText,
+    _origPdfLeft: left,
+    _origPdfTop: top,
+    _origPdfWidth: width,
+    _origPdfHeight: height,
+    _origSpans: lineSpans
+  });
+
+  bindTextEvents(t);
+  fc.add(t);
+  fc.setActiveObject(t);
+  fc.renderAll();
+
+  setTool('select');
+  t.enterEditing();
+  showTextFormatBar(t);
+  pushUndo();
+
+  return t;
+}
+
+async function convertAllPageTextToEditable() {
+  const tl = document.getElementById('pdf-text-layer');
+  if (!tl || !fc) return;
+  const allSpans = Array.from(tl.querySelectorAll('span')).filter(s => s.textContent && s.textContent.trim());
+  if (!allSpans.length) {
+    showToast(_lang === 'tr' ? 'Bu sayfada düzenlenebilir metin bulunamadı' : 'No editable text found on this page');
+    return;
+  }
+
+  const lines = [];
+  const LINE_GAP = 5;
+  for (const span of allSpans) {
+    const top = span.offsetTop;
+    let best = null, bestD = Infinity;
+    for (const ln of lines) {
+      const d = Math.abs(ln.avgTop - top);
+      if (d <= LINE_GAP && d < bestD) { bestD = d; best = ln; }
+    }
+    if (best) {
+      best.spans.push(span);
+      best.avgTop = best.spans.reduce((s, x) => s + x.offsetTop, 0) / best.spans.length;
+    } else {
+      lines.push({ avgTop: top, spans: [span] });
+    }
+  }
+
+  let count = 0;
+  for (const ln of lines) {
+    ln.spans.sort((a, b) => a.offsetLeft - b.offsetLeft);
+    let lineText = '';
+    for (let i = 0; i < ln.spans.length; i++) {
+      const s = ln.spans[i];
+      if (i > 0) {
+        const prev = ln.spans[i - 1];
+        const gap = s.offsetLeft - (prev.offsetLeft + prev.offsetWidth);
+        if (gap > 4 && !lineText.endsWith(' ') && !s.textContent.startsWith(' ')) {
+          lineText += ' ';
+        }
+      }
+      lineText += s.textContent;
+    }
+    lineText = lineText.trim();
+    if (!lineText) continue;
+
+    const left = Math.min(...ln.spans.map(s => s.offsetLeft));
+    const top = Math.min(...ln.spans.map(s => s.offsetTop));
+    const right = Math.max(...ln.spans.map(s => s.offsetLeft + s.offsetWidth));
+    const bottom = Math.max(...ln.spans.map(s => s.offsetTop + s.offsetHeight));
+    const width = Math.max(right - left, 16);
+    const height = Math.max(bottom - top, 14);
+
+    const compStyle = window.getComputedStyle(ln.spans[0]);
+    const fontSize = parseFloat(compStyle.fontSize) || Math.round(height * 0.85);
+    const isBold = compStyle.fontWeight === 'bold' || parseInt(compStyle.fontWeight) >= 600;
+    const isItalic = compStyle.fontStyle === 'italic';
+    const fam = compStyle.fontFamily || '';
+    const fontFamily = (fam.includes('Serif') || fam.includes('Times') || fam.includes('Georgia')) ? 'Georgia' : 'Arial';
+
+    ln.spans.forEach(s => { s.style.visibility = 'hidden'; });
+
+    const t = new fabric.IText(lineText, {
+      left: Math.round(left),
+      top: Math.round(top),
+      fontSize: Math.round(fontSize),
+      fontFamily: fontFamily,
+      fontWeight: isBold ? 'bold' : 'normal',
+      fontStyle: isItalic ? 'italic' : 'normal',
+      fill: '#111827',
+      backgroundColor: '#ffffff',
+      padding: 2,
+      lineHeight: 1.14,
+      selectable: true,
+      evented: true,
+      editable: true,
+      _isPdfEditedText: true,
+      _origPdfText: lineText,
+      _origPdfLeft: left,
+      _origPdfTop: top,
+      _origPdfWidth: width,
+      _origPdfHeight: height
+    });
+    bindTextEvents(t);
+    fc.add(t);
+    count++;
+  }
+
+  fc.renderAll();
+  setTool('select');
+  pushUndo();
+  showToast(_lang === 'tr' ? `Sayfadaki ${count} satır metin düzenlenebilir yapıldı ✓` : `${count} text lines on page made editable ✓`);
 }
 
 function setupFabricListeners() {
@@ -3678,6 +4373,32 @@ function orgAddWord() {
   input.click();
 }
 
+/* ── Add EPUB (.epub) as pages ── */
+function orgAddEpub() {
+  const input = document.getElementById('org-epub-input');
+  input.onchange = async e => {
+    const f = e.target.files[0]; if (!f) return; e.target.value = '';
+    showOrgLoading('EPUB belgesi işleniyor…');
+    try {
+      const res = await _renderEpubToPages(f, (curr, total, msg) => {
+        const loadEl = document.querySelector('.org-loading');
+        if (loadEl) loadEl.textContent = msg;
+      });
+      for (const p of res.pages) {
+        const pd = { type:'image', imageUrl:p.url, width:p.width, height:p.height, thumbnail:null };
+        pd.thumbnail = await scaledThumbAsync(p.url, 92, 124);
+        draftPages.push(pd);
+      }
+      buildOrganizeGrid();
+    } catch(e2) {
+      alert('EPUB belgesi işlenemedi: ' + e2.message);
+      const loadEl = document.querySelector('.org-loading');
+      if (loadEl) loadEl.remove();
+    }
+  };
+  input.click();
+}
+
 function showOrgLoading(msg) {
   const grid = document.getElementById('organize-grid');
   const el = document.createElement('div'); el.className = 'org-loading'; el.textContent = msg;
@@ -3845,8 +4566,9 @@ document.addEventListener('keydown', e => {
     case 'a': setTool('arrow');     break;
     case 'r': setTool('rect');      break;
     case 'c': setTool('circle');    break;
-    case 't': setTool('text');      break;
-    case 'i': openStampPicker();    break;
+    case 't': setTool('text');          break;
+    case 'd': setTool('edit-pdf-text'); break;
+    case 'i': openStampPicker();        break;
     case 's': openSigModal();       break;
     case '+': case '=': zoom(+0.25); break;
     case '-':           zoom(-0.25); break;
@@ -3919,7 +4641,7 @@ let _tlSelecting      = false;
 function setTextLayerActive(on) {
   const tl = document.getElementById('pdf-text-layer');
   if (!tl) return;
-  tl.classList.remove('text-active', 'text-selectable');
+  tl.classList.remove('text-active', 'text-selectable', 'text-edit-mode');
   if (on === true) {
     // Translate mode: full text layer interaction, Fabric canvas blocked
     tl.classList.add('text-active');
@@ -3932,6 +4654,9 @@ function setTextLayerActive(on) {
     // Select mode: only spans are selectable, Fabric canvas stays active for object interaction
     tl.classList.add('text-selectable');
     if (fc && fc.upperCanvasEl) fc.upperCanvasEl.style.pointerEvents = '';
+  } else if (on === 'edit-pdf-text') {
+    tl.classList.add('text-edit-mode');
+    if (fc && fc.upperCanvasEl) fc.upperCanvasEl.style.pointerEvents = 'none';
   } else {
     if (fc && fc.upperCanvasEl) fc.upperCanvasEl.style.pointerEvents = '';
     clearTlSelection();
@@ -4002,7 +4727,27 @@ function drawTlHighlights(range) {
     if (e.button !== 0) return;
     const isActive     = tl.classList.contains('text-active');
     const isSelectable = tl.classList.contains('text-selectable');
-    if (!isActive && !isSelectable) return;
+    const isEditMode   = tl.classList.contains('text-edit-mode');
+    if (!isActive && !isSelectable && !isEditMode) return;
+
+    if (isEditMode) {
+      const span = e.target.closest('span');
+      if (span) {
+        e.preventDefault();
+        e.stopPropagation();
+        convertPdfSpanToEditableText(span, e.clientX, e.clientY);
+        return;
+      }
+      if (fc) {
+        tl.style.pointerEvents = 'none';
+        fc.upperCanvasEl.dispatchEvent(new MouseEvent('mousedown', {
+          bubbles: false, cancelable: true, view: window, detail: 1,
+          clientX: e.clientX, clientY: e.clientY, button: 0, buttons: 1
+        }));
+        document.addEventListener('mouseup', () => { tl.style.pointerEvents = ''; }, { once: true });
+      }
+      return;
+    }
 
     // In text-selectable mode: if a Fabric annotation is under the cursor,
     // pass the event to Fabric instead of starting text selection
@@ -4105,6 +4850,16 @@ function drawTlHighlights(range) {
       }
     } else {
       clearTlSelection();
+    }
+  });
+
+  tl.addEventListener('dblclick', e => {
+    if (currentTool !== 'select') return;
+    const span = e.target.closest('span');
+    if (span) {
+      e.preventDefault();
+      e.stopPropagation();
+      convertPdfSpanToEditableText(span, e.clientX, e.clientY);
     }
   });
 })();
@@ -5255,7 +6010,7 @@ function showToast(msg, duration = 2600) {
       if (tl) { tl.innerHTML = ''; }
     }
     // re-apply text layer state after render
-    setTextLayerActive(translateMode ? true : (currentTool === 'select' ? 'select' : false));
+    setTextLayerActive(translateMode ? true : (currentTool === 'select' ? 'select' : (currentTool === 'edit-pdf-text' ? 'edit-pdf-text' : false)));
     // Re-draw search highlights if search is active
     if (_searchOpen && _searchQuery && _searchResults.length) {
       await new Promise(r => requestAnimationFrame(r));

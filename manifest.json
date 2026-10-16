@@ -29,7 +29,8 @@
     {
       "action": "/",
       "accept": {
-        "application/pdf": [".pdf"]
+        "application/pdf": [".pdf"],
+        "application/epub+zip": [".epub"]
       }
     }
   ]

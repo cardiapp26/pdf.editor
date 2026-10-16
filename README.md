@@ -19,6 +19,7 @@ Sunucu gerektirmez — `index.html` dosyasını doğrudan açabilir veya herhang
 | Dikdörtgen | `R` | Dikdörtgen / kare |
 | Daire | `C` | Elips / daire |
 | Metin | `T` | Yazı kutusu (font, boyut, B/I/U, renk) |
+| Metin Düzenle | `D` | Mevcut PDF yazısına tıkla, doğrudan değiştir |
 | İmza | `S` | Kayıtlı imzayı sayfaya ekle |
 
 ### 📄 Sayfa Organizasyonu
@@ -27,6 +28,7 @@ Sunucu gerektirmez — `index.html` dosyasını doğrudan açabilir veya herhang
 - Başka bir PDF'den sayfa **ekle**
 - **Resim** (JPG, PNG) dosyasını sayfa olarak ekle
 - **Word (.docx)** belgesini sayfaya dönüştürüp ekle
+- **EPUB (.epub)** e-kitap dosyasını sayfalara dönüştürüp aç / ekle
 
 ### 🌐 Çeviri
 - `Q` ile çeviri modunu aç
@@ -68,6 +70,7 @@ veya `index.html` dosyasını doğrudan tarayıcıda açın.
 | [Fabric.js](http://fabricjs.com/) | 5.3.1 | Canvas çizim motoru |
 | [jsPDF](https://github.com/parallax/jsPDF) | 2.5.1 | PDF dışa aktarma |
 | [Mammoth.js](https://github.com/mwilliamson/mammoth.js) | 1.6.0 | DOCX → HTML dönüştürme |
+| [JSZip](https://stuk.github.io/jszip/) | 3.10.1 | EPUB arşiv açma & dosya çıkarma |
 | [html2canvas](https://html2canvas.hertzen.com/) | 1.4.1 | HTML → canvas render |
 
 Tüm kütüphaneler CDN üzerinden yüklenir; internet bağlantısı gerektirir.
